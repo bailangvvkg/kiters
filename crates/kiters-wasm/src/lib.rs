@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use kiters_core::{
-    BuildEvent, BuildReport, Content, DiscoverEvent, FrontMatterEvent, Hook, HtmlEvent, MarkdownEvent, Page,
-    PageEvent, Plan, SiteMeta, Status, Target, TargetKind,
+    BuildEvent, BuildReport, Content, DiscoverEvent, FrontMatterEvent, Hook, HtmlEvent, MarkdownEvent,
+    PageEvent, Plan, SiteMeta, Status, Target, TargetEvent, TargetKind,
 };
 use wasmtime::component::{bindgen, Component, Linker};
 use wasmtime::{Config, Engine, Store};
@@ -128,14 +128,14 @@ impl Hook for WasmPlugin {
     }
 
     fn on_html(&self, event: HtmlEvent<'_>) -> anyhow::Result<()> {
-        let rewritten =
-            self.with_instance(|store, plugin| plugin.call_on_html(store, event.url, event.html.clone()))?;
+        let html = event.html.clone();
+        let rewritten = self.with_instance(|store, plugin| plugin.call_on_html(store, event.url, &html))?;
         *event.html = rewritten;
         Ok(())
     }
 
     fn on_page(&self, event: PageEvent<'_>) -> anyhow::Result<()> {
-        let before = types::Page {
+        let before = Page {
             url: event.page.url.clone(),
             status: event.page.status,
             html: event.page.html.clone(),
@@ -148,7 +148,7 @@ impl Hook for WasmPlugin {
     }
 
     fn on_build_complete(&self, event: BuildEvent<'_>) -> anyhow::Result<()> {
-        let report = types::Report {
+        let report = Report {
             items: event.report.items as u32,
             drafts: event.report.drafts as u32,
             rendered: event.report.rendered as u32,
@@ -160,8 +160,8 @@ impl Hook for WasmPlugin {
 }
 
 /// Everything the event hands out, in the order the world speaks it.
-fn item_of(content: &Content) -> types::Item {
-    types::Item {
+fn item_of(content: &Content) -> Item {
+    Item {
         id: content.slug.clone(),
         title: content.front.title.clone(),
         url: content.url(),
@@ -173,14 +173,14 @@ fn item_of(content: &Content) -> types::Item {
             .front
             .taxonomies
             .iter()
-            .map(|(name, terms)| types::Taxonomy { name: name.clone(), terms: terms.clone() })
+            .map(|(name, terms)| Taxonomy { name: name.clone(), terms: terms.clone() })
             .collect(),
     }
 }
 
 /// The item the plugin returned, written back where it came from. Only
 /// the fields the world carries are written; the rest are the build's.
-fn write_back(content: &mut Content, item: &types::Item) {
+fn write_back(content: &mut Content, item: &Item) {
     content.front.title = item.title.clone();
     content.body = item.body.clone();
     content.front.date = item.date.as_deref().and_then(|d| chrono::DateTime::parse_from_rfc3339(d).ok()).map(|d| d.with_timezone(&chrono::Utc));
@@ -203,8 +203,8 @@ fn write_back(content: &mut Content, item: &types::Item) {
     }
 }
 
-fn planned_of(target: &Target) -> types::Planned {
-    types::Planned {
+fn planned_of(target: &Target) -> Planned {
+    Planned {
         url: target.url.clone(),
         out: target.out.display().to_string(),
         kind: kind_to(&target.kind),
