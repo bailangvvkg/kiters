@@ -38,8 +38,7 @@ impl Highlighter {
         let mut html = String::from("<pre class=\"code code-");
         html.push_str(language);
         html.push_str("\">");
-        for line in code.split_inclusive('
-') {
+        for line in code.split_inclusive('\n') {
             let ranges = highlighter.highlight_line(line, &self.syntaxes).ok()?;
             let said = syntect::html::styled_line_to_highlighted_html(&ranges[..], syntect::html::IncludeBackground::No).ok()?;
             html.push_str(&said);
