@@ -44,9 +44,25 @@ enum Command {
         #[arg(long)]
         stats: bool,
     },
+    /// Serves the site from a whole snapshot, rebuilt on change.
+    Serve {
+        /// The site's root directory.
+        #[arg(long, default_value = ".")]
+        site: PathBuf,
+        /// The address to listen on.
+        #[arg(long, default_value = "0.0.0.0:1718")]
+        addr: std::net::SocketAddr,
+        /// Drafts stand in the site too; a preview wants this.
+        #[arg(long)]
+        drafts: bool,
+        /// Serve exactly what was built; do not watch for changes.
+        #[arg(long)]
+        no_watch: bool,
+    },
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Build { site, out, drafts, unsafe_html, cpuprofile, flamegraph, stats } => {
@@ -76,6 +92,9 @@ fn main() -> anyhow::Result<()> {
                 println!("进程峰值内存: {}", profile::peak_rss());
             }
             Ok(())
+        }
+        Command::Serve { site, addr, drafts, no_watch } => {
+            kiters_serve::serve(site, addr, !no_watch, drafts).await
         }
     }
 }

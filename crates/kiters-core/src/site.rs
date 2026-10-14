@@ -54,9 +54,16 @@ pub enum Status {
 }
 
 impl Status {
-    /// Whether the item stands in the public site.
-    pub fn is_public(self) -> bool {
-        matches!(self, Status::Published)
+    /// Whether the item stands in the public site. A published item
+    /// always does; a scheduled one does the moment its date has come;
+    /// a draft never does. `dated` is the item's own instant, `now` the
+    /// judge.
+    pub fn stands(self, dated: DateTime<Utc>, now: DateTime<Utc>) -> bool {
+        match self {
+            Status::Published => true,
+            Status::Scheduled => dated <= now,
+            _ => false,
+        }
     }
     pub fn as_str(self) -> &'static str {
         match self {
@@ -94,6 +101,10 @@ pub struct FrontMatter {
     pub cover: Option<String>,
     #[serde(default)]
     pub taxonomies: BTreeMap<String, Vec<String>>,
+    /// Addresses this item has answered under before. Each one is a page
+    /// that says where the item lives now.
+    #[serde(default)]
+    pub aliases: Vec<String>,
     #[serde(default)]
     pub kind: Option<Kind>,
     #[serde(flatten)]
@@ -143,6 +154,14 @@ pub enum TargetKind {
     NotFound,
     /// A feed, a sitemap — a whole site said in one file.
     Extra(&'static str),
+    /// An address an item answered under before, now saying where it
+    /// lives. Served as a page, not a redirect: a page carries the new
+    /// address in it, and readers without JavaScript still land.
+    Alias { to: String },
+    /// The index of one taxonomy: every term it has, each a link.
+    Taxonomy(String),
+    /// One term of one taxonomy: every public item carrying it.
+    Term { taxonomy: String, term: String },
 }
 
 /// A target is one address the finished site answers: the kind of page it

@@ -3,6 +3,7 @@ title: 你好,世界
 status: published
 date: 2026-01-02T10:00:00Z
 cover: https://www.dmoe.cc/random.php
+aliases: [/posts/old-hello/]
 taxonomies:
   tags: [随笔, 开工]
 ---
@@ -20,3 +21,7 @@ fn main() { println!("kiters"); }
 | 甲 | 乙 |
 |---|---|
 | 1 | 2 |
+
+{{< note 入场 >}}
+短代码测试:本框应折叠成引用块。
+{{< /note >}}

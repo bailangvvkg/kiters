@@ -32,6 +32,12 @@ impl Layout {
 
     /// The home page: the site's name and its items, newest first.
     pub fn home(&self, site: &kiters_core::SiteMeta, items: &[kiters_core::Content]) -> String {
+        self.list(site, &site.title, items)
+    }
+
+    /// A list page: a title and the items under it, newest first — the
+    /// home page is one, a term's page is one.
+    pub fn list(&self, site: &kiters_core::SiteMeta, title: &str, items: &[kiters_core::Content]) -> String {
         let mut body = String::from("<article class=\"list\">\n");
         for item in items {
             body.push_str(&format!(
@@ -42,7 +48,21 @@ impl Layout {
             ));
         }
         body.push_str("</article>\n");
-        self.page(site, &site.title, &body)
+        self.page(site, title, &body)
+    }
+
+    /// An alias page: an address that says where its item lives now.
+    /// Served as a page rather than a redirect, for a page carries the
+    /// new address in it — and lands, even for the reader nothing runs
+    /// for.
+    pub fn alias(&self, site: &kiters_core::SiteMeta, to: &str) -> String {
+        let to = escape_attr(to);
+        let body = format!(
+            "<p>这个地址搬家了:<a href=\"{to}\">{to}</a></p>\n\
+             <meta http-equiv=\"refresh\" content=\"0;url={to}\">\n\
+             <script>location.replace(\"{to}\")</script>\n"
+        );
+        self.page(site, "搬家了", &body)
     }
 
     /// The not-found page, rendered like any other.

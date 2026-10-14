@@ -11,6 +11,8 @@ path = "src/main.rs"
 [dependencies]
 kiters-core.workspace = true
 kiters-build.workspace = true
+kiters-serve.workspace = true
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 anyhow.workspace = true
 clap.workspace = true
 

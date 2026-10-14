@@ -20,5 +20,6 @@ kiters-core = { path = "crates/kiters-core" }
 kiters-parse = { path = "crates/kiters-parse" }
 kiters-render = { path = "crates/kiters-render" }
 kiters-build = { path = "crates/kiters-build" }
+kiters-serve = { path = "crates/kiters-serve" }
 tempfile = "3"
 pprof = { version = "0.13", default-features = false, features = ["prost-codec", "flamegraph", "cpp"] }

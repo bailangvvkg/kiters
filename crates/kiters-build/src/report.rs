@@ -33,7 +33,7 @@ impl<'a> SiteBuilder<'a> {
             hooks: Hooks::new(),
             layout: Layout::builtin(),
             markdown: RenderOptions::default(),
-            plan: PlanOptions { with_drafts: false, with_not_found: true },
+            plan: PlanOptions { with_drafts: false, with_not_found: true, with_taxonomies: true },
             out: None,
         }
     }
@@ -71,8 +71,13 @@ pub fn build_site(builder: &SiteBuilder<'_>) -> anyhow::Result<(SiteMeta, Plan, 
     for err in &errors {
         eprintln!("跳过 {}", err);
     }
-    let drafts = items.iter().filter(|i| !i.status().is_public()).count();
-    let public: Vec<_> = items.iter().filter(|i| i.status().is_public()).cloned().collect();
+    let now = chrono::Utc::now();
+    let drafts = items.iter().filter(|i| *i.status() == kiters_core::Status::Draft).count();
+    let public: Vec<_> = items
+        .iter()
+        .filter(|i| i.status().stands(i.dated(now), now))
+        .cloned()
+        .collect();
 
     let plan = plan_site(&items, &builder.hooks, builder.plan)?;
 
@@ -127,12 +132,45 @@ fn render_target(
             let Some(content) = &target.content else {
                 return Ok(String::new());
             };
-            let mut html = markdown_to_html(&content.body, builder.markdown);
+            // Shortcodes fold first — they are markdown's own little
+            // structures, and what they fold into renders like any prose.
+            let folded = kiters_render::fold_shortcodes(&content.body);
+            let mut html = markdown_to_html(&folded, builder.markdown);
             builder.hooks.html(&target.url, &mut html)?;
             Ok(builder.layout.page(site, &content.front.title, &html))
         }
         TargetKind::Home => Ok(builder.layout.home(site, public)),
         TargetKind::NotFound => Ok(builder.layout.not_found(site)),
+        TargetKind::Alias { to } => Ok(builder.layout.alias(site, to)),
+        TargetKind::Taxonomy(name) => {
+            let mut terms: Vec<(String, String)> = public
+                .iter()
+                .filter_map(|item| item.front.taxonomies.get(name.as_str()))
+                .flatten()
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .map(|term| {
+                    let url = format!("/{name}/{}/", crate::plan::term_encode(term));
+                    (term.clone(), url)
+                })
+                .collect();
+            let mut body = String::from("<ul>\n");
+            for (term, url) in &terms {
+                body.push_str(&format!("<li><a href=\"{url}\">{term}</a></li>\n"));
+            }
+            body.push_str("</ul>\n");
+            Ok(builder.layout.page(site, name, &body))
+        }
+        TargetKind::Term { taxonomy, term } => {
+            let carrying: Vec<_> = public
+                .iter()
+                .filter(|item| {
+                    item.front.taxonomies.get(taxonomy.as_str()).is_some_and(|terms| terms.iter().any(|t| t == term))
+                })
+                .collect();
+            let items: Vec<kiters_core::Content> = carrying.into_iter().cloned().collect();
+            Ok(builder.layout.list(site, term, &items))
+        }
         TargetKind::Extra("sitemap") => {
             let urls: Vec<String> = public
                 .iter()
