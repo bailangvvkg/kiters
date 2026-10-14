@@ -66,11 +66,11 @@ impl WasmPlugin {
 
     /// The instance, made on first use and kept; every call refuels
     /// before it crosses the boundary.
-    fn with_instance<T>(&self, call: impl FnOnce(&mut Store<PluginState>, &Plugin) -> anyhow::Result<T>) -> anyhow::Result<T> {
+    fn with_instance<T>(&self, call: impl FnOnce(&mut Store<PluginState>, &Plugin) -> Result<T, wasmtime::Error>) -> anyhow::Result<T> {
         let mut guard = self.instance.lock().expect("plugin instance poisoned");
         if guard.is_none() {
             let mut linker: Linker<PluginState> = Linker::new(&self.engine);
-            Plugin::add_to_linker(&mut linker, |state| state)?;
+            Plugin::add_to_linker(&mut linker, |state| state).map_err(|err| anyhow::anyhow!("link: {err}"))?;
             let mut store = Store::new(&self.engine, PluginState);
             let bindings = Plugin::instantiate(&mut store, &self.component, &linker)
                 .map_err(|err| anyhow::anyhow!("instantiate: {err}"))?;
@@ -236,7 +236,9 @@ fn kind_from(kind: &str) -> Option<TargetKind> {
                 let (taxonomy, term) = rest.split_once('/')?;
                 Some(TargetKind::Term { taxonomy: taxonomy.to_string(), term: term.to_string() })
             } else {
-                kind.strip_prefix("extra:").map(|name| TargetKind::Extra(name.to_string().into()))
+                // `extra` targets are the site's own (the sitemap, the
+                // feed), fixed names, not a plugin's to invent.
+                None
             }
         }
     }
