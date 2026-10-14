@@ -5,7 +5,7 @@
 <h1>{{ title }}</h1>
 <ul>
 {% for item in items %}
-<li><a href="{{ item.url }}">{{ item.title }}</a>{% if item.date %} — {{ item.date }}{% endif %}</li>
+<li><a href="{{ item.url | safe }}">{{ item.title }}</a>{% if item.date %} — {{ item.date }}{% endif %}</li>
 {% endfor %}
 </ul>
 </body>
