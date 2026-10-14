@@ -13,10 +13,34 @@ wit_bindgen::generate!({ path: "../../crates/kiters-wasm/wit", world: "plugin" }
 struct LinkcardLite;
 
 impl Guest for LinkcardLite {
+    fn on_discover(_path: String, _kind: String) -> bool {
+        false
+    }
+
+    fn on_front_matter(item: Item) -> Item {
+        item
+    }
+
+    fn on_markdown(_url: String, body: String) -> String {
+        body
+    }
+
+    fn on_target(target: Planned) -> Outcome {
+        Outcome::Keep(target)
+    }
+
     fn on_html(_url: String, html: String) -> String {
         fold_bare_links(&html)
     }
+
+    fn on_page(page: Page) -> Page {
+        page
+    }
+
+    fn on_build_complete(_report: Report) {}
 }
+
+export!(LinkcardLite);
 
 /// Walks the HTML; a paragraph that is exactly one bare link becomes a
 /// card, and everything else stays byte for byte.
