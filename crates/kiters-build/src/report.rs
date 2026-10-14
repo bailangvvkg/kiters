@@ -72,7 +72,7 @@ pub fn build_site(builder: &SiteBuilder<'_>) -> anyhow::Result<(SiteMeta, Plan, 
         eprintln!("跳过 {}", err);
     }
     let now = chrono::Utc::now();
-    let drafts = items.iter().filter(|i| *i.status() == kiters_core::Status::Draft).count();
+    let drafts = items.iter().filter(|i| i.status() == kiters_core::Status::Draft).count();
     let public: Vec<_> = items
         .iter()
         .filter(|i| i.status().stands(i.dated(now), now))
@@ -143,7 +143,7 @@ fn render_target(
         TargetKind::NotFound => Ok(builder.layout.not_found(site)),
         TargetKind::Alias { to } => Ok(builder.layout.alias(site, to)),
         TargetKind::Taxonomy(name) => {
-            let mut terms: Vec<(String, String)> = public
+            let terms: Vec<(String, String)> = public
                 .iter()
                 .filter_map(|item| item.front.taxonomies.get(name.as_str()))
                 .flatten()
