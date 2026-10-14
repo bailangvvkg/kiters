@@ -12,3 +12,4 @@ wasmtime = "49"
 
 [dev-dependencies]
 tempfile.workspace = true
+kiters-build.workspace = true

@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use kiters_build::{build_site, SiteBuilder};
-use kiters_core::{Hook, HtmlEvent};
+use kiters_core::Hook;
 use kiters_wasm::WasmPlugin;
 
 /// Where the CI leaves the compiled guests — `target/wasm32-wasip2/
@@ -95,6 +95,9 @@ fn a_broken_plugin_fails_the_build_by_name_not_by_hanging() {
     let file = junk.path().join("junk.wasm");
     std::fs::write(&file, b"not wasm at all").unwrap();
     let engine = engine();
-    let err = WasmPlugin::load(&engine, &file).unwrap_err();
+    let err = match WasmPlugin::load(&engine, &file) {
+        Err(err) => err,
+        Ok(_) => panic!("junk wasm loaded as a plugin?"),
+    };
     assert!(err.to_string().contains("junk.wasm"), "failure did not name the file: {err}");
 }
