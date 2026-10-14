@@ -10,13 +10,13 @@ use tower::ServiceExt;
 /// The headers of a logged-in writer.
 type Authed = Vec<(&'static str, String)>;
 
-fn site() -> tempfile::TempDir {
+fn make_site() -> tempfile::TempDir {
     let site = tempfile::tempdir().unwrap();
     std::fs::write(site.path().join("kite.yaml"), "site:\n  title: 管理站\n  language: zh-CN\n").unwrap();
     site
 }
 
-fn app(of: &tempfile::TempDir) -> Router {
+fn make_app(of: &tempfile::TempDir) -> Router {
     kiters_admin::router(of.path(), "sekrit")
 }
 
@@ -75,8 +75,8 @@ async fn create(app: &Router, authed: &[(&'static str, String)], slug: &str) -> 
 
 #[tokio::test]
 async fn login_gates_everything() {
-    let site = site();
-    let app = app(&site);
+    let site = make_site();
+    let app = make_app(&site);
     let authed = login(&app).await;
 
     let (status, body, _) = call(&app, "GET", "/api/session", &authed, None).await;
@@ -92,8 +92,8 @@ async fn login_gates_everything() {
 
 #[tokio::test]
 async fn the_life_of_an_item() {
-    let site = site();
-    let app = app(&site);
+    let site = make_site();
+    let app = make_app(&site);
     let authed = login(&app).await;
 
     // Create: kind said, the file is the truth.
@@ -135,8 +135,8 @@ async fn the_life_of_an_item() {
 
 #[tokio::test]
 async fn if_match_gates_the_second_writer() {
-    let site = site();
-    let app = app(&site);
+    let site = make_site();
+    let app = make_app(&site);
     let authed = login(&app).await;
     let revision = create(&app, &authed, "race").await;
 
@@ -168,8 +168,8 @@ async fn if_match_gates_the_second_writer() {
 
 #[tokio::test]
 async fn preview_renders_and_forgets() {
-    let site = site();
-    let app = app(&site);
+    let site = make_site();
+    let app = make_app(&site);
     let authed = login(&app).await;
     let (status, body, _) = call(
         &app,
@@ -186,7 +186,7 @@ async fn preview_renders_and_forgets() {
 
 #[tokio::test]
 async fn export_then_import_round_trip() {
-    let site = site();
+    let site = make_site();
     std::fs::create_dir_all(site.path().join("content/posts/orig")).unwrap();
     std::fs::write(
         site.path().join("content/posts/orig/index.md"),
@@ -194,7 +194,7 @@ async fn export_then_import_round_trip() {
     )
     .unwrap();
 
-    let app = app(&site);
+    let app = make_app(&site);
     let authed = login(&app).await;
     let (status, _, zip) = call(&app, "GET", "/api/export", &authed, None).await;
     assert_eq!(status, StatusCode::OK);
@@ -202,7 +202,7 @@ async fn export_then_import_round_trip() {
 
     // Into a second site: the zip says what the first site said.
     let other = site();
-    let app2 = app(&other);
+    let app2 = make_app(&other);
     let authed2 = login(&app2).await;
     let mut headers = authed2.clone();
     headers.push(("content-type", "application/zip".to_string()));
@@ -216,8 +216,8 @@ async fn export_then_import_round_trip() {
 
 #[tokio::test]
 async fn delete_takes_the_item_out_revision_first() {
-    let site = site();
-    let app = app(&site);
+    let site = make_site();
+    let app = make_app(&site);
     let authed = login(&app).await;
     let revision = create(&app, &authed, "gone").await;
 
@@ -235,8 +235,8 @@ async fn delete_takes_the_item_out_revision_first() {
 
 #[tokio::test]
 async fn media_round_trip_and_no_traveling() {
-    let site = site();
-    let app = app(&site);
+    let site = make_site();
+    let app = make_app(&site);
     let authed = login(&app).await;
 
     let boundary = "k1t3rs";
@@ -267,8 +267,8 @@ async fn media_round_trip_and_no_traveling() {
 
 #[tokio::test]
 async fn kind_is_not_optional_on_create() {
-    let site = site();
-    let app = app(&site);
+    let site = make_site();
+    let app = make_app(&site);
     let authed = login(&app).await;
     let (status, body, _) = call(
         &app,
