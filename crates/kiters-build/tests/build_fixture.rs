@@ -79,5 +79,5 @@ fn with_drafts_the_draft_stands_for_a_preview() {
     builder.plan.with_drafts = true;
     let (_site, _plan, _pages, report) = build_site(&builder).unwrap();
     assert!(out.path().join("posts/miyue-notes/index.html").is_file(), "draft not written");
-    assert_eq!(report.rendered, 13); // the 12 standing pages plus the draft's own
+    assert_eq!(report.rendered, 14); // the 12 standing pages, the draft, the scheduled — a preview shows all
 }

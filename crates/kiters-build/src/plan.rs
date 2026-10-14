@@ -55,7 +55,7 @@ pub fn plan_site(items: &[Content], hooks: &Hooks, opts: PlanOptions) -> anyhow:
         for alias in &item.front.aliases {
             let url = alias_path(alias);
             let mut target = Target {
-                kind: TargetKind::Alias { to: url.clone() },
+                kind: TargetKind::Alias { to: item.url() },
                 url: url.clone(),
                 out: Target::address_to_path(&url),
                 content: Some(item.clone()),
