@@ -26,7 +26,7 @@ impl Highlighter {
     pub fn new() -> Self {
         Highlighter {
             syntaxes: SyntaxSet::load_defaults_newlines(),
-            theme: ThemeSet::load_defaults()["InspiredGitHub"].clone(),
+            theme: ThemeSet::load_defaults().themes["InspiredGitHub"].clone(),
         }
     }
 
@@ -39,7 +39,7 @@ impl Highlighter {
         let mut html = String::from("<pre class=\"code code-");
         html.push_str(language);
         html.push_str("\">");
-        for line in LinesWithEndings::with_terminator(&code) {
+        for line in LinesWithEndings::new(&code) {
             let ranges = highlighter.highlight_line(line, &self.syntaxes).ok()?;
             let said = syntect::html::styled_line_to_highlighted_html(&ranges[..], syntect::html::IncludeBackground::No).ok()?;
             html.push_str(&said);
