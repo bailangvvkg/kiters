@@ -70,7 +70,7 @@ impl WasmPlugin {
         let mut guard = self.instance.lock().expect("plugin instance poisoned");
         if guard.is_none() {
             let mut linker: Linker<PluginState> = Linker::new(&self.engine);
-            Plugin::add_to_linker::<PluginState>(&mut linker, |state| state).map_err(|err| anyhow::anyhow!("link: {err}"))?;
+            Plugin::add_to_linker::<PluginState, PluginState>(&mut linker, |state| state).map_err(|err| anyhow::anyhow!("link: {err}"))?;
             let mut store = Store::new(&self.engine, PluginState);
             let bindings = Plugin::instantiate(&mut store, &self.component, &linker)
                 .map_err(|err| anyhow::anyhow!("instantiate: {err}"))?;
