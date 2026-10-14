@@ -73,8 +73,9 @@ impl WasmPlugin {
     fn with_instance<T>(&self, call: impl FnOnce(&mut Store<PluginState>, &Plugin) -> Result<T, wasmtime::Error>) -> anyhow::Result<T> {
         let mut guard = self.instance.lock().expect("plugin instance poisoned");
         if guard.is_none() {
-            let mut linker: Linker<PluginState> = Linker::new(&self.engine);
-            Plugin::add_to_linker::<PluginState, PluginState>(&mut linker, |state| state).map_err(|err| anyhow::anyhow!("link: {err}"))?;
+            // The world imports nothing: an empty linker is the whole
+            // linking there is.
+            let linker: Linker<PluginState> = Linker::new(&self.engine);
             let mut store = Store::new(&self.engine, PluginState);
             let bindings = Plugin::instantiate(&mut store, &self.component, &linker)
                 .map_err(|err| anyhow::anyhow!("instantiate: {err}"))?;
