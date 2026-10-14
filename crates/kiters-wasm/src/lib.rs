@@ -83,7 +83,7 @@ impl WasmPlugin {
             // WASI answers what the guest's own runtime asks for, and
             // nothing more; the world itself imports nothing.
             let mut linker: Linker<PluginState> = Linker::new(&self.engine);
-            wasmtime_wasi::add_to_linker_sync(&mut linker)
+            wasmtime_wasi::p2::add_to_linker_sync(&mut linker)
                 .map_err(|err| anyhow::anyhow!("link wasi: {err}"))?;
             let wasi = WasiCtx::builder().build();
             let mut store =
