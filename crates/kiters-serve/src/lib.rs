@@ -77,22 +77,45 @@ async fn route(State(served): State<Arc<Served>>, request: Request<Body>) -> Res
     response
 }
 
+/// Loads every plugin named, one engine shared among them. No paths,
+/// no plugins — the ordinary build of an ordinary site.
+pub fn load_plugins(paths: &[std::path::PathBuf]) -> anyhow::Result<Vec<Arc<kiters_wasm::WasmPlugin>>> {
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let engine = kiters_wasm::WasmPlugin::engine()?;
+    paths.iter().map(|p| kiters_wasm::WasmPlugin::load(&engine, p).map(Arc::new)).collect()
+}
+
 /// Serves the site, rebuilding on change, until the process stops.
 ///
 /// Every reader holds one snapshot whole for the length of one answer;
 /// a rebuild swaps in a new one whole. There is no invalidation to get
-/// wrong — the old snapshot dies with its last reader.
+/// wrong — the old snapshot dies with its last reader. Plugins ride
+/// along through every rebuild, loaded once, run on every page.
 pub async fn serve(
     root: std::path::PathBuf,
     addr: SocketAddr,
     with_watch: bool,
     with_drafts: bool,
+    plugins: Vec<std::path::PathBuf>,
 ) -> anyhow::Result<()> {
-    let snapshot = Arc::new(ArcSwap::from_pointee(Snapshot::build(&root, with_drafts)?));
+    let hooks = load_plugins(&plugins)?;
+    let mut builder = SiteBuilder::new(&root);
+    for hook in &hooks {
+        builder = builder.hook_shared(hook.clone());
+    }
+    let snapshot = Arc::new(ArcSwap::from_pointee(Snapshot::from_builder(&mut builder, with_drafts)?));
     let served = Arc::new(Served { snapshot: snapshot.clone() });
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    eprintln!("kiters serve 在 {} ({} 页, watch {})", addr, served.snapshot.load().pages_count(), if with_watch { "开" } else { "关" });
+    eprintln!(
+        "kiters serve 在 {} ({} 页, watch {}, 插件 {})",
+        addr,
+        served.snapshot.load().pages_count(),
+        if with_watch { "开" } else { "关" },
+        hooks.len()
+    );
 
     if with_watch {
         watch_and_rebuild(root.clone(), with_drafts, hooks, move |rebuilt| {
