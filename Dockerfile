@@ -6,6 +6,7 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY apps ./apps
+COPY plugins ./plugins
 COPY tests ./tests
 # The one binary that ships; the plugins build for wasm, not for here.
 RUN cargo build --release -p kiters-cli
