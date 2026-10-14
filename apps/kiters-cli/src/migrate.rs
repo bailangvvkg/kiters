@@ -80,7 +80,7 @@ pub fn migrate(source: &str) -> (String, Migration) {
                 continue;
             }
             report.left_alone.push(action.to_string());
-            out.push_str(&format!("{{{{{action}}}}}"));
+            out.push_str(&format!("{{{{ {action} }}}}"));
             continue;
         }
         // A variable, or something we do not say.
@@ -89,7 +89,7 @@ pub fn migrate(source: &str) -> (String, Migration) {
             report.converted += 1;
         } else {
             report.left_alone.push(action.to_string());
-            out.push_str(&format!("{{{{{action}}}}}"));
+            out.push_str(&format!("{{{{ {action} }}}}"));
         }
     }
     out.push_str(rest);
@@ -106,19 +106,34 @@ fn expression(source: &str, frame: Option<&Frame>) -> String {
             _ => "site".to_string(),
         };
     }
-    let mut parts: Vec<String> = Vec::new();
-    for (i, part) in source.trim_start_matches('.').split('.').enumerate() {
-        let part = part.trim();
-        if part.is_empty() {
-            continue;
-        }
-        if i == 0 {
-            parts.push(lower_first(part));
-        } else {
-            parts.push(lower_first(part));
+    let bare = source.starts_with('.');
+    let mut parts: Vec<String> = source
+        .trim_start_matches('.')
+        .split('.')
+        .filter(|p| !p.trim().is_empty())
+        .map(|p| say_field(p.trim()))
+        .collect();
+    // Inside a range a bare `.Title` is the item's own title.
+    if bare {
+        if let Some(Frame::Range(var)) = frame {
+            parts.insert(0, var.clone());
         }
     }
     parts.join(".")
+}
+
+/// A Go field name in a minijinja shape. Whole-word upper (the Go
+/// habit of `URL`, `RSS`) becomes wholly lower; anything else keeps
+/// its case but the first letter's.
+fn say_field(word: &str) -> String {
+    if word.chars().all(|c| !c.is_ascii_lowercase()) {
+        return word.to_lowercase();
+    }
+    let mut chars = word.chars();
+    match chars.next() {
+        Some(first) => first.to_lowercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
 }
 
 /// `range .Pages` walks `pages`, each one `page`; `range $x := .Y`
@@ -149,14 +164,6 @@ fn printf_argument(action: &str) -> Option<String> {
     None
 }
 
-fn lower_first(word: &str) -> String {
-    let mut chars = word.chars();
-    match chars.next() {
-        Some(first) => first.to_lowercase().collect::<String>() + chars.as_str(),
-        None => String::new(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,7 +179,7 @@ mod tests {
     fn ifs_and_ends() {
         let (jinja, report) = migrate("{{ if .Show }}a{{ else }}b{{ end }}");
         assert_eq!(jinja, "{% if show %}a{% else %}b{% endif %}");
-        assert_eq!(report.converted, 4);
+        assert_eq!(report.converted, 3);
     }
 
     #[test]
