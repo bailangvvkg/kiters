@@ -12,6 +12,7 @@ use axum::extract::State;
 use axum::http::{header, HeaderValue, Request, Response, StatusCode};
 use axum::Router;
 use tower_http::compression::CompressionLayer;
+use tower_http::compression::predicate::SizeAbove;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 pub use snapshot::Snapshot;
@@ -31,11 +32,15 @@ pub fn app(served: Arc<Served>) -> Router {
     Router::new()
         .fallback(route)
         .with_state(served)
-        // The carrying is negotiated with the asking: br, zstd, gzip,
-        // each over the same bytes. Nothing under a kilobyte is worth
-        // carrying compressed, and pages past it are compressed once by
-        // the layer and kept by the connection's writers.
-        .layer(CompressionLayer::new().br(true).zstd(true).gzip(true))
+        .layer(
+            CompressionLayer::new()
+                .br(true)
+                .zstd(true)
+                .gzip(true)
+                // Nothing under a kilobyte is worth carrying compressed —
+                // the smaller answer says more than the savings.
+                .compress_when(SizeAbove::new(1024))
+        )
         // A page is of the moment the snapshot is; the browser must
         // never be left holding what the site was. The snapshot is the
         // cache, and it empties the only way the site changes: by being
