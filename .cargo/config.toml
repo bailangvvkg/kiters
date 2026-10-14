@@ -5,3 +5,8 @@
 [target.x86_64-pc-windows-gnu]
 linker = "rust-lld"
 rustflags = ["-C", "link-self-contained=yes"]
+
+# A static Linux binary needs no cross toolchain: the musl target ships
+# self-contained with the toolchain's own lld.
+[target.x86_64-unknown-linux-musl]
+linker = "rust-lld"

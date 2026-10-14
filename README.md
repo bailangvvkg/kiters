@@ -68,6 +68,23 @@ tests/fixture/    中文示例站(1 发布 + 1 草稿 + 1 页面)
 
 设计全案见 kite 仓库 `kiters` 分支 `docs/kiters/LLM_HANDOFF.md`。
 
+## 热状图
+
+```
+kiters build --site . --cpuprofile cpu.pb --flamegraph flame.svg --stats
+```
+
+- `--cpuprofile`:Go pprof 格式(glibc Linux 上 pprof-rs 采样,`go tool pprof`
+  可读;musl 静态二进制上信号内回溯空转,已知限制)
+- `--flamegraph`:独立 SVG 火焰图
+- `--stats`:构建数字 + 进程峰值内存(Linux 读 /proc VmHWM)
+- musl 静态二进制上用 perf 代替(符号全开):
+  `perf record -F 399 -g --call-graph fp -o perf.data \
+    ./kiters build ... && perf report --stdio --no-children`
+
+实测(服务器,400 篇放大站):热路径 = comrak 的 markdown→HTML
+(memcpy/utf8/分配器占前三,共 ~17%),其余全是噪声——优化时只看这里。
+
 ## 测试
 
 ```
