@@ -1,0 +1,153 @@
+//! Reading a site's content: the tree walk, the front matter split, and
+//! the item a file becomes.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use chrono::Utc;
+use kiters_core::{Content, FrontMatter, Hooks, Kind, SiteMeta};
+
+/// Reads a site's configuration — the same `kite.yaml` a kite site
+/// already carries, or a `kiters.yaml` if the site would rather not.
+///
+/// Only the `site` table is read; the rest of the file is none of this
+/// crate's business.
+pub fn read_config(root: &Path) -> anyhow::Result<SiteMeta> {
+    for name in ["kite.yaml", "kiters.yaml"] {
+        let path = root.join(name);
+        if !path.is_file() {
+            continue;
+        }
+        let text = fs::read_to_string(&path)?;
+        let raw: serde_yaml::Value = serde_yaml::from_str(&text)?;
+        let site = raw.get("site").cloned().unwrap_or_default();
+        return Ok(serde_yaml::from_value(site)?);
+    }
+    Ok(SiteMeta::default())
+}
+
+/// A walk refused to go on. The path is the file that did it.
+#[derive(Debug)]
+pub struct WalkError {
+    pub path: PathBuf,
+    pub cause: String,
+}
+
+impl std::fmt::Display for WalkError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.path.display(), self.cause)
+    }
+}
+impl std::error::Error for WalkError {}
+
+/// Splits an item's file into its front matter and its prose.
+///
+/// The matter is the leading `---` block; a file without one is all
+/// prose, which a site may well mean.
+pub fn split_front_matter(text: &str) -> (FrontMatter, String) {
+    let trimmed = text.trim_start_matches('\u{feff}');
+    let after = trimmed.trim_start_matches(['\r', '\n']);
+    if let Some(rest) = after.strip_prefix("---") {
+        // The matter runs to the next line that is only dashes.
+        if let Some(end) = rest.find("\n---") {
+            let tail = &rest[end + 4..];
+            let matter = &rest[..end];
+            let mut front: FrontMatter = serde_yaml::from_str(matter).unwrap_or_default();
+            // A file may carry fields we have no name for; those went to
+            // `extra` already. A matter that failed to parse entirely is
+            // empty — the walk reports it, and the prose still renders.
+            if front.title.is_empty() {
+                front.title = matter.lines().next().unwrap_or("").to_string();
+            }
+            return (front, tail.trim_start_matches(['\r', '\n']).to_string());
+        }
+    }
+    (FrontMatter::default(), trimmed.to_string())
+}
+
+/// Reads one item: front matter, prose, the slug from the directory the
+/// file lives in when the matter does not say one.
+pub fn read_item(path: &Path, kind: &Kind, hooks: &Hooks) -> Result<Option<Content>, WalkError> {
+    let mut skip = false;
+    if let Err(err) = hooks.discover(path, kind, &mut skip) {
+        return Err(WalkError { path: path.to_path_buf(), cause: err.to_string() });
+    }
+    if skip {
+        return Ok(None);
+    }
+
+    let text = fs::read_to_string(path).map_err(|e| WalkError { path: path.to_path_buf(), cause: e.to_string() })?;
+    let (front, body) = split_front_matter(&text);
+
+    let slug = front
+        .slug
+        .clone()
+        .unwrap_or_else(|| slug_from_dir(path).unwrap_or_default());
+
+    let mut content = Content {
+        kind: kind.clone(),
+        slug,
+        front,
+        body,
+        source: path.to_path_buf(),
+    };
+    if let Err(err) = hooks.front_matter(&mut content) {
+        return Err(WalkError { path: path.to_path_buf(), cause: err.to_string() });
+    }
+    if let Err(err) = hooks.markdown(&mut content) {
+        return Err(WalkError { path: path.to_path_buf(), cause: err.to_string() });
+    }
+    Ok(Some(content))
+}
+
+/// The directory an item's file lives in is the item's slug: the file is
+/// `index.md` inside a directory named after the item.
+fn slug_from_dir(path: &Path) -> Option<String> {
+    path.parent()?.file_name()?.to_str().map(str::to_owned)
+}
+
+/// Walks a site's `content` tree and reads every item in it.
+///
+/// The layout is the one kite sites already have: `content/<kind dir>/
+/// <slug>/index.md`. Errors are collected, not thrown: one unreadable
+/// file takes itself out of the build, and the site builds around it.
+pub fn walk_content(root: &Path, hooks: &Hooks) -> (Vec<Content>, Vec<WalkError>) {
+    let mut items = Vec::new();
+    let mut errors = Vec::new();
+
+    let content = root.join("content");
+    let Ok(entries) = fs::read_dir(&content) else {
+        return (items, errors);
+    };
+    for kind_dir in entries.flatten() {
+        let kind_path = kind_dir.path();
+        if !kind_path.is_dir() {
+            continue;
+        }
+        let kind_name = kind_path.file_name().and_then(|n| n.to_str()).unwrap_or_default().to_owned();
+        let kind = Kind::new(kind_name.trim_end_matches('s'));
+
+        for file in walkdir::WalkDir::new(&kind_path).sort_by_file_name() {
+            let entry = match file {
+                Ok(e) => e,
+                Err(e) => {
+                    errors.push(WalkError { path: kind_path.clone(), cause: e.to_string() });
+                    continue;
+                }
+            };
+            if !entry.file_type().is_file() || entry.file_name() != "index.md" {
+                continue;
+            }
+            match read_item(entry.path(), &kind, hooks) {
+                Ok(Some(item)) => items.push(item),
+                Ok(None) => {}
+                Err(e) => errors.push(e),
+            }
+        }
+    }
+
+    // The newest first, the way a home page wants them.
+    let now = Utc::now();
+    items.sort_by(|a, b| b.dated(now).cmp(&a.dated(now)));
+    (items, errors)
+}

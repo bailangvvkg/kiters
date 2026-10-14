@@ -1,0 +1,15 @@
+[package]
+name = "kiters-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kiters-core.workspace = true
+anyhow.workspace = true
+comrak.workspace = true
+minijinja.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+serde_yaml.workspace = true

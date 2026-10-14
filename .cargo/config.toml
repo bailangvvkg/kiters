@@ -1,0 +1,7 @@
+# The Windows host here has no MSVC and no Windows SDK; it does have
+# llvm-mingw on PATH, whose clang shim misses the gcc compatibility
+# libraries. The gnu toolchain's own self-contained directory has them,
+# so: link self-contained, with the toolchain's own lld as the linker.
+[target.x86_64-pc-windows-gnu]
+linker = "rust-lld"
+rustflags = ["-C", "link-self-contained=yes"]

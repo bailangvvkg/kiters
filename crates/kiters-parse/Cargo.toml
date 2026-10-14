@@ -1,0 +1,13 @@
+[package]
+name = "kiters-parse"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kiters-core.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+walkdir.workspace = true
+chrono.workspace = true

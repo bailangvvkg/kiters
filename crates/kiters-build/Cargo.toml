@@ -1,0 +1,17 @@
+[package]
+name = "kiters-build"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kiters-core.workspace = true
+kiters-parse.workspace = true
+kiters-render.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
