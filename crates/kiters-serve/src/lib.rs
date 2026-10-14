@@ -95,7 +95,7 @@ pub async fn serve(
     eprintln!("kiters serve 在 {} ({} 页, watch {})", addr, served.snapshot.load().pages_count(), if with_watch { "开" } else { "关" });
 
     if with_watch {
-        watch_and_rebuild(root.clone(), with_drafts, move |rebuilt| {
+        watch_and_rebuild(root.clone(), with_drafts, hooks, move |rebuilt| {
             snapshot.store(Arc::new(rebuilt));
         })?;
     }
