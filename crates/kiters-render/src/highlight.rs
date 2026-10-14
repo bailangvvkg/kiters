@@ -62,7 +62,9 @@ pub fn highlight_code_blocks(html: &str, highlighter: &Highlighter) -> String {
     while let Some(open) = rest.find("<pre><code") {
         out.push_str(&rest[..open]);
         let after_open = &rest[open..];
-        let Some(class_end) = after_open.find('>') else { break };
+        // The opening tag's own `>` ends it — and `<pre>` carries one
+        // of its own, so the search starts past the `<pre><code` prefix.
+        let Some(class_end) = after_open["<pre><code".len()..].find('>').map(|i| i + "<pre><code".len()) else { break };
         let head = &after_open[..class_end];
         let body_start = class_end + 1;
         let Some(close) = after_open[body_start..].find("</code></pre>") else {
