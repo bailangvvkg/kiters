@@ -12,7 +12,7 @@ use kiters_wasm::WasmPlugin;
 fn guest(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target/wasm32-wasip2/debug")
-        .join(format!("{name}.wasm"))
+        .join(format!("{}.wasm", name.replace('-', "_")))
         .canonicalize()
         .unwrap_or_else(|_| panic!("{name}.wasm not built — run: cargo build -p {name} --target wasm32-wasip2"))
 }
