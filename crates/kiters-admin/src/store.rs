@@ -139,7 +139,8 @@ impl ContentStore {
     pub fn read_raw(&self, id: &str) -> Option<(String, String)> {
         let (kind, slug) = Self::split_id(id).ok()?;
         let raw = std::fs::read_to_string(self.file(&kind, &slug)).ok()?;
-        Some((raw, revision_of(&raw)))
+        let revision = revision_of(&raw);
+        Some((raw, revision))
     }
 
     /// Writes an item whole: front matter serialized fresh, the prose as

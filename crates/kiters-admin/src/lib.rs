@@ -170,10 +170,10 @@ fn default_status() -> String {
 }
 
 async fn create(_auth: Authed, State(admin): State<Arc<Admin>>, Json(item): Json<WriteItem>) -> Response {
-    let Some(kind) = item.kind else {
+    let Some(kind) = item.kind.clone() else {
         return json_status(StatusCode::BAD_REQUEST, serde_json::json!({"error": "kind is required"}));
     };
-    let slug = item.slug.unwrap_or_else(|| format!("{}-{}", slug_word(&item.title), chrono::Utc::now().timestamp() % 100000));
+    let slug = item.slug.clone().unwrap_or_else(|| format!("{}-{}", slug_word(&item.title), chrono::Utc::now().timestamp() % 100000));
     match write(&admin, &kind, &slug, &item, None) {
         Ok(revision) => json_status(
             StatusCode::CREATED,
@@ -254,7 +254,7 @@ async fn remove(_auth: Authed, State(admin): State<Arc<Admin>>, Path(id): Path<S
         return json_status(StatusCode::PRECONDITION_REQUIRED, serde_json::json!({"error": "if-match is required"}));
     };
     match admin.store.delete(&id, expect) {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Ok(()) => (StatusCode::NO_CONTENT, ()).into_response(),
         Err(WriteError::Conflict(now)) => json_status(
             StatusCode::CONFLICT,
             serde_json::json!({"error": "someone wrote first", "current_revision": now}),

@@ -3,4 +3,4 @@
 
 mod content;
 
-pub use content::{read_config, read_item, walk_content, WalkError};
+pub use content::{read_config, read_item, split_front_matter, walk_content, WalkError};

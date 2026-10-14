@@ -5,6 +5,7 @@
 //! There is no session table to lose and no logout that has to reach
 //! anyone — the signature is the session.
 
+use hmac::digest::KeyInit;
 use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
 
@@ -27,7 +28,7 @@ impl Sessions {
     /// Whether this is the password. Constant time: a wrong answer
     /// takes as long as a right one.
     pub fn password_matches(&self, candidate: &str) -> bool {
-        same(&self.key, &Sha256::digest(candidate.as_bytes()))
+        same(&self.key, Sha256::digest(candidate.as_bytes()).as_slice())
     }
 
     /// A cookie for a login now.
@@ -69,8 +70,8 @@ impl Sessions {
 }
 
 /// Equal in constant time: lengths first, then every byte folded.
-fn same(a: &str, b: &str) -> bool {
-    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+fn same(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 fn hex(bytes: &[u8]) -> String {
