@@ -132,7 +132,7 @@ pub async fn serve(
     for hook in &hooks {
         builder = builder.hook_shared(hook.clone());
     }
-    let snapshot = Arc::new(ArcSwap::from_pointee(Snapshot::from_builder(&mut builder, with_drafts)?));
+    let snapshot = Arc::new(ArcSwap::from_pointee(Snapshot::from_builder(&mut builder, *with_drafts)?));
     let served = Arc::new(Served { snapshot: snapshot.clone() });
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
