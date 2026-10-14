@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use kiters_core::{
-    BuildEvent, BuildReport, Content, DiscoverEvent, FrontMatterEvent, Hook, HtmlEvent, MarkdownEvent,
-    PageEvent, Plan, SiteMeta, Status, Target, TargetEvent, TargetKind,
+    BuildEvent, Content, DiscoverEvent, FrontMatterEvent, Hook, HtmlEvent, MarkdownEvent, PageEvent, Status,
+    Target, TargetEvent, TargetKind,
 };
 use wasmtime::component::{bindgen, Component, Linker};
 use wasmtime::{Config, Engine, Store};
@@ -70,7 +70,7 @@ impl WasmPlugin {
         let mut guard = self.instance.lock().expect("plugin instance poisoned");
         if guard.is_none() {
             let mut linker: Linker<PluginState> = Linker::new(&self.engine);
-            Plugin::add_to_linker(&mut linker, |state| state).map_err(|err| anyhow::anyhow!("link: {err}"))?;
+            Plugin::add_to_linker::<PluginState>(&mut linker, |state| state).map_err(|err| anyhow::anyhow!("link: {err}"))?;
             let mut store = Store::new(&self.engine, PluginState);
             let bindings = Plugin::instantiate(&mut store, &self.component, &linker)
                 .map_err(|err| anyhow::anyhow!("instantiate: {err}"))?;
@@ -155,7 +155,7 @@ impl Hook for WasmPlugin {
             written: event.report.written as u32,
             took_ms: event.report.took.as_millis() as u32,
         };
-        self.with_instance(|store, plugin| plugin.call_on_build_complete(store, &report))
+        self.with_instance(|store, plugin| plugin.call_on_build_complete(store, report))
     }
 }
 
@@ -173,7 +173,7 @@ fn item_of(content: &Content) -> Item {
             .front
             .taxonomies
             .iter()
-            .map(|(name, terms)| Taxonomy { name: name.clone(), terms: terms.clone() })
+            .map(|(name, terms)| kiters::plugin::types::Taxonomy { name: name.clone(), terms: terms.clone() })
             .collect(),
     }
 }
