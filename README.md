@@ -4,17 +4,23 @@
 
 ```
 kiters build --site . --out dist
+kiters serve --site . --addr 0.0.0.0:1718
 ```
 
 ```
-我的站: 3 项(1 草稿) → 6 页,落盘 6 个文件,用时 2ms
+我的站: 5 项(1 草稿) → 12 页,落盘 12 个文件,用时 2ms
 ```
 
 ## 是什么
 
 读一个内容树(`content/<kind>/<slug>/index.md`,和 kite 站点同一形状),
-预渲染**整站**——每篇文章页、首页、404、sitemap、RSS——落成任何静态服务器
-都能直接伺候的文件。草稿不出现,和 kite 的私密语义一致。
+预渲染**整站**——每篇文章页、首页、404、sitemap、RSS、别名页、税目页——
+落成任何静态服务器都能直接伺候的文件。草稿不出现、定时未到不出现,
+和 kite 的私密语义一致。
+
+`serve` 把整站握成一个快照:每个回答都是同一份完整字节(响应头
+`x-kiters: snapshot`),改文件→整站重建→原子换血(ArcSwap),
+query 字符串天然免疫(路径即地址)。压缩协商 br/zstd/gzip,超过 1 KiB 才值得运。
 
 ## 钩子:能 Hook 一切
 
@@ -29,6 +35,21 @@ kiters build --site . --out dist
 | `on_html` | 正文成 HTML、进布局前 | 最后一眼 body |
 | `on_page` | 整页完成 | 页面字节的最后决定权 |
 | `on_build_complete` | 全站渲染完,落盘前 | 只读:站点、计划、页面、报告 |
+
+## 插件:WebAssembly,七钩子,燃料沙箱
+
+钩子不用编进 kiters——写一个 WebAssembly 组件(`kiters:plugin` 协议,
+`crates/kiters-wasm/wit/kiters.wit`),`--plugin x.wasm` 挂上:
+
+```
+cargo build -p stamp-wasm --target wasm32-wasip2
+kiters serve --site . --plugin ../../../target/wasm32-wasip2/debug/stamp_wasm.wasm
+```
+
+- 七个时刻全导出;不关心的原样返回(协议模板见 `plugins/` 三个样例)。
+- 引擎共享、组件一次编译、实例复用;每次调用前**燃料重置**——
+  插件跑死循环=构建报错,不是挂死。
+- WASI 最小实现:无文件、无时钟、无随机。插件是变换,不是进程。
 
 ```rust
 struct Card;
@@ -51,22 +72,25 @@ let (_, plan, pages, report) = build_site(
 crates/
   kiters-core     类型(Kind/Status/FrontMatter/Target/Plan)+ Hook API
   kiters-parse    树遍历、front matter 拆分、钩子埋点
-  kiters-render   comrak(GFM)+ minijinja 内置布局
+  kiters-render   comrak(GFM)+ minijinja 内置布局 + 短代码折叠
   kiters-build    计划与预渲染编排,落盘
+  kiters-serve    axum 快照服务 + watch + 压缩
+  kiters-wasm     wasmtime 49 宿主桥 + WIT 协议
+plugins/          样例插件(stamp/skipper/linkcard-lite)
 apps/
-  kiters-cli      kiters build
-tests/fixture/    中文示例站(1 发布 + 1 草稿 + 1 页面)
+  kiters-cli      kiters build / serve
+tests/fixture/    中文示例站(3 发布 + 1 草稿 + 1 定时,别名/税目/长文)
 ```
 
 ## 路线
 
-- [x] M1 预渲染内核(本仓库现状)
-- [ ] M2 serve:ArcSwap 快照换血 + watch 增量 + 压缩协商
-- [ ] M3 wasmtime + WIT 组件插件
+- [x] M1 预渲染内核
+- [x] M2 serve:快照换血 + watch + 压缩协商 + 短代码 + 别名页 + 税目页 + 定时发布
+- [x] M3 wasmtime + WIT 组件插件(燃料沙箱,三个样例,linkcard 对拍)
 - [ ] M4 Studio admin API
-- [ ] M5 主题层 + Go-template 迁移器
+- [ ] M5 主题层 + Go-template 迁移器 + 上色 + 搜索
 
-设计全案见 kite 仓库 `kiters` 分支 `docs/kiters/LLM_HANDOFF.md`。
+设计全案见 `docs/LLM_HANDOFF.md`(前史在 kite 仓库 `kiters` 分支)。
 
 ## 热状图
 
@@ -88,5 +112,6 @@ kiters build --site . --cpuprofile cpu.pb --flamegraph flame.svg --stats
 ## 测试
 
 ```
-cargo test        # 5 项:整站构建、CLI、钩子改写/否决/报错具名/事件载荷
+cargo build -p stamp-wasm -p skipper-wasm -p linkcard-lite --target wasm32-wasip2
+cargo test --workspace   # 24 项:整站/CLI/钩子×5/serve×8/插件×4/短代码×3
 ```

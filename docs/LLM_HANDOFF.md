@@ -1,0 +1,90 @@
+# kiters 移交文档(LLM_HANDOFF)
+
+> 这是 kiters 的自包含交接文档。前史(为何重写、五签名设计、crate 选型、M1 实录)在
+> kite 仓库 `kiters` 分支 `docs/kiters/LLM_HANDOFF.md`,仍有效。本文件接续 M2 起。
+
+## 0. 现状一句话
+
+四里程碑走完两个:M1 预渲染内核、M2 serve 全家、M3 wasm 插件,全部 CI 双绿
+(test+image),镜像 `ghcr.io/bailangvvkg/kiters:latest`。**不接管生产流量**:
+halo 主站、kite(Go)备胎、kiters 只验收路线。
+
+## 1. 部署姿态(用户钦定,2026-10)
+
+- 不接管 kite.zipimg.cn 流量。
+- 生产链路不动:EdgeOne → Lucky → kite:1717(Go 版)。
+- kiters = 长线重写,验收靠 CI + 镜像,**服务器不参与编译**(3865U 太弱,用户否决)。
+- 工作流:本地纯编辑 → push → Actions(test+image)→ ghcr。本地无 Rust 工具链。
+
+## 2. M2 实录(已完成,35ba8a5 起)
+
+- `crates/kiters-serve`:axum 0.8 + ArcSwap 快照。**页面按路径寻址,query 天然免疫**
+  (无 per-query 状态,洪水=同一页)。响应 `x-kiters: snapshot` + `cache-control: no-store`。
+- 压缩:tower-http br/zstd/gzip,`compress_when(SizeAbove::new(1024))` —— tower-http
+  默认阈值是 32 字节,别踩。
+- watch:notify 8,burst 去抖 150ms,定时发布走时钟臂(最近 due 时间唤醒,空闲分钟
+  不重建)。**watcher 必须移进线程保活**,函数返回即 drop。
+- 短代码:`{{< note|info|tip|warn 标题 >}}…{{< /kind >}}` → comrak 前折叠成引用块
+  (`crates/kiters-render/src/shortcode.rs`)。不需要 unsafe HTML。kite 精确视觉对齐留 M5。
+- 别名页:front matter `aliases:` → 200 页 + meta refresh,指向 item 真实地址。
+- 税目页:`/tags/` 索引 + `/tags/<term>/`(term URL 百分号编码,快照键=编码形态)。
+- 定时:`Status::stands(dated, now)` 单一裁决,published 恒立、scheduled 到点立、draft 永不立。
+- CLI:`kiters serve --site --addr(0.0.0.0:1718) --drafts --no-watch`。
+
+## 3. M3 实录(已完成,eff9ed1)
+
+- **协议**:`crates/kiters-wasm/wit/kiters.wit`,world `kiters:plugin@0.1.0`。
+  七导出对应七钩子;guest 必须实现全部(wit-bindgen 0.62 无默认实现),不关心的原样返回。
+- **宿主**:`crates/kiters-wasm`,wasmtime 49 + wasmtime-wasi(p2)。
+  引擎进程级共享;组件 `.wasm` 编译一次;实例实例化一次复用(Mutex)。
+  **燃料 20 亿/调用,实例化前就要 set_fuel**(实例化也烧油)。
+  WASI 最小实现:无文件、无时钟、无随机 —— 插件是变换不是进程。
+- **桥**:`WasmPlugin` 实现 `kiters_core::Hook`。item 的 id=slug(core 无 id 字段)。
+  `Extra` kind 是站点自有的,插件不能造(kind_from 返回 None)。
+- **guest 编译**:target `wasm32-wasip2`(rustup target add),cdylib 直出组件,
+  产物 `target/wasm32-wasip2/debug/<pkg_name_下划线>.wasm`。
+  CI 先编 guest 再 `cargo test --workspace`(测试从 target 目录读 .wasm)。
+- **样例插件** `plugins/`:stamp-wasm(on_page 戳记)、skipper-wasm(on_target 撤页)、
+  linkcard-lite(on_html 裸链接→卡片,对拍 kite linkcard 的行为契约)。
+- **CLI**:`--plugin <x.wasm>`(可多次)挂在 build 与 serve;插件随每次重建复用。
+- wasmtime 49 坑:Error 自有类型(非 anyhow re-export);`HasData`/`WasiView` trait;
+  空 linker 无需 add_to_linker(但 wasip2 guest 要 `p2::add_to_linker_sync`)。
+
+## 4. M4 设计(admin API,未动工)
+
+kite admin API 契约(admin Studio React 直连):登录会话、内容 CRUD(cursor 分页、
+If-Match/revision 乐观锁、409 冲突)、媒体上传、预览(no-store 语义)、导入导出。
+要点(从 kite 生产事实抄):
+- PUT /contents/{id} **必须带 kind 字段**(漏了 400)。
+- revision 冲突 → 409,If-Match 头携带。
+- 预览响应 no-store。
+- kiters 侧:内容写回 content/ 目录 → watch 重建 → 快照换血,天然预览闭环。
+- 形态:axum 路由挂在 serve 上(`/api/*`),认证用签名 cookie 会话。
+
+## 5. M5 设计(主题/上色/搜索,未动工)
+
+- minijinja 主题系统(layout.rs → 模板目录 + 内置主题回退)。
+- Go-template → minijinja 迁移器(文本变换,离线工具)。
+- syntect 上色(comrak render.plugins 或 on_html 阶段)。
+- tantivy + jieba 中文搜索(搜索索引 = 一次构建产物)。
+- 图片管线(sharp 等价:resize/webp,候选:image crate)。
+
+## 6. 验收基线(每里程碑)
+
+- CI 双绿(test + image),镜像体积记录进 README。
+- fixture 行为测试为主,服务器 docker 仅验收不编译。
+- 每步 push 即验收,kci.py(临时目录)盯 Actions。
+
+## 7. 仓库地标
+
+```
+crates/kiters-core     七钩子 + 类型(hooks.rs/site.rs)
+crates/kiters-parse    walk + front matter
+crates/kiters-render   comrak + minijinja layout + shortcode.rs
+crates/kiters-build    plan.rs(七种 TargetKind)+ report.rs(build_site)
+crates/kiters-serve    lib.rs(app/serve) snapshot.rs watch.rs
+crates/kiters-wasm     lib.rs(WasmPlugin 桥) wit/kiters.wit(协议)
+plugins/               stamp-wasm / skipper-wasm / linkcard-lite
+apps/kiters-cli        build + serve 子命令
+tests/fixture          5 内容项(1 草稿 1 定时)含别名/税目/长文
+```
