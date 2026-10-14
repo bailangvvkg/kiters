@@ -185,7 +185,7 @@ fn find_tag(html: &str, open: &str, close: &str) -> Option<TagHit> {
     let inline = tail.starts_with("<hyperlink-inline-") || tail.starts_with("&lt;hyperlink-inline-");
     let mut params = Params::new();
     for (name, value) in attrs_of(tail) {
-        if let Some(key) = match name {
+        if let Some(key) = match name.as_str() {
             "href" => Some("url"),
             "custom-title" => Some("title"),
             "custom-description" => Some("desc"),
