@@ -122,6 +122,7 @@ pub fn plan_site(items: &[Content], hooks: &Hooks, opts: PlanOptions) -> anyhow:
     for (kind, url, out) in [
         (TargetKind::Extra("sitemap"), "/sitemap.xml".to_string(), PathBuf::from("sitemap.xml")),
         (TargetKind::Extra("rss"), "/rss.xml".to_string(), PathBuf::from("rss.xml")),
+        (TargetKind::Extra("search"), "/search.json".to_string(), PathBuf::from("search.json")),
     ] {
         let mut target = Target { kind, url: url.clone(), out, content: None };
         if offer(&mut target, hooks)? {

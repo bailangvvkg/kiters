@@ -24,6 +24,13 @@ pub struct SiteBuilder<'a> {
 }
 
 impl<'a> SiteBuilder<'a> {
+    /// The colors, shared by every page of every build of the process:
+    /// looked up once, worn everywhere.
+    pub fn highlighter(&self) -> &'static kiters_render::Highlighter {
+        static HIGHLIGHTER: std::sync::OnceLock<kiters_render::Highlighter> = std::sync::OnceLock::new();
+        HIGHLIGHTER.get_or_init(kiters_render::Highlighter::new)
+    }
+
     /// A build of the site at `root` with no hooks and the built-in
     /// layout — the ordinary build of an ordinary site. Nothing is
     /// written until [`SiteBuilder::out`] says where.
@@ -150,6 +157,10 @@ fn render_target(
             // structures, and what they fold into renders like any prose.
             let folded = kiters_render::fold_shortcodes(&content.body);
             let mut html = markdown_to_html(&folded, builder.markdown);
+            if builder.markdown.highlight {
+                let highlighter = builder.highlighter();
+                html = kiters_render::highlight_code_blocks(&html, &highlighter);
+            }
             builder.hooks.html(&target.url, &mut html)?;
             Ok(builder.layout.page(site, &content.front.title, &html))
         }
@@ -185,6 +196,30 @@ fn render_target(
             let items: Vec<kiters_core::Content> = carrying.into_iter().cloned().collect();
             Ok(builder.layout.list(site, term, &items))
         }
+        TargetKind::Extra("search") => {
+            // The search index is a build's product like any page: every
+            // standing item, said plainly — title, address, date, and
+            // the prose as text — for a theme's own reader to search
+            // with, client-side, no server asked twice.
+            let mut json = String::from("{\"items\":[");
+            let mut first = true;
+            for item in public {
+                let text = plain_text(&item.body);
+                let entry = serde_json::json!({
+                    "title": item.front.title,
+                    "url": item.url(),
+                    "date": item.front.date.map(|d| d.date_naive().to_string()),
+                    "text": text,
+                });
+                if !first {
+                    json.push(',');
+                }
+                first = false;
+                json.push_str(&entry.to_string());
+            }
+            json.push_str("]}");
+            Ok(json)
+        }
         TargetKind::Extra("sitemap") => {
             let urls: Vec<String> = public
                 .iter()
@@ -210,4 +245,27 @@ fn render_target(
         }
         TargetKind::Extra(_) => Ok(String::new()),
     }
+}
+
+/// Markdown said as plain text: the marks gone, the words kept. A
+/// search index does not rank formatting; it reads it.
+fn plain_text(markdown: &str) -> String {
+    let mut text = String::with_capacity(markdown.len());
+    for line in markdown.lines() {
+        let line = line.trim();
+        if line.starts_with("```") || line.is_empty() {
+            continue;
+        }
+        let said: String = line
+            .trim_start_matches('#')
+            .trim()
+            .chars()
+            .filter(|&c| !matches!(c, '*' | '`' | '[' | ']' | '!' | '>'))
+            .collect();
+        if !said.is_empty() {
+            text.push_str(&said);
+            text.push(' ');
+        }
+    }
+    text.chars().take(500).collect::<String>().trim_end().to_string()
 }

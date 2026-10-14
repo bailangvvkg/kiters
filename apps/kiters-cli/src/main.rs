@@ -1,5 +1,6 @@
 //! kiters — a site, read, planned and pre-rendered.
 
+mod migrate;
 mod profile;
 
 use std::path::PathBuf;
@@ -39,6 +40,9 @@ enum Command {
         /// Wear a theme of the site's own (`themes/<name>/`).
         #[arg(long)]
         theme: Option<String>,
+        /// Code blocks wear syntect color.
+        #[arg(long)]
+        highlight: bool,
         /// Writes a CPU profile of the whole build, gzipped, in Go's
         /// pprof format — `go tool pprof -top kiters <file>` reads it as
         /// it reads any Go profile. Linux.
@@ -51,6 +55,16 @@ enum Command {
         /// Prints the build's numbers and the process's peak memory.
         #[arg(long)]
         stats: bool,
+    },
+    /// Moves a Go template (a kite theme's) to minijinja. What the
+    /// migrator does not say it leaves in place and names at the end.
+    MigrateTemplate {
+        /// The Go template to move.
+        #[arg(long)]
+        from: PathBuf,
+        /// Where the minijinja template lands.
+        #[arg(long)]
+        to: PathBuf,
     },
     /// Serves the site from a whole snapshot, rebuilt on change.
     Serve {
@@ -76,6 +90,9 @@ enum Command {
         /// Wear a theme of the site's own (`themes/<name>/`).
         #[arg(long)]
         theme: Option<String>,
+        /// Code blocks wear syntect color.
+        #[arg(long)]
+        highlight: bool,
     },
 }
 
@@ -83,11 +100,12 @@ enum Command {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Command::Build { site, out, drafts, plugin, unsafe_html, theme, cpuprofile, flamegraph, stats } => {
+        Command::Build { site, out, drafts, plugin, unsafe_html, theme, highlight, cpuprofile, flamegraph, stats } => {
             let out = site.join(&out);
             let mut builder = SiteBuilder::new(&site).out(&out);
             builder.plan.with_drafts = drafts;
             builder.markdown.unsafe_html = unsafe_html;
+            builder.markdown.highlight = highlight;
             if let Some(name) = &theme {
                 builder = builder.theme(name);
             }
@@ -114,6 +132,19 @@ async fn main() -> anyhow::Result<()> {
             );
             if stats {
                 println!("进程峰值内存: {}", profile::peak_rss());
+            }
+            Ok(())
+        }
+        Command::MigrateTemplate { from, to } => {
+            let source = std::fs::read_to_string(&from)?;
+            let (moved, report) = migrate::migrate(&source);
+            std::fs::write(&to, moved)?;
+            println!("{} → {}: 转换 {} 处", from.display(), to.display(), report.converted);
+            if !report.left_alone.is_empty() {
+                println!("未识别(保留原样,需手工处理):");
+                for action in &report.left_alone {
+                    println!("  {{{{ {action} }}}}");
+                }
             }
             Ok(())
         }

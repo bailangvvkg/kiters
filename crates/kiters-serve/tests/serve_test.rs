@@ -108,6 +108,15 @@ async fn the_sitemap_is_served_as_xml() {
 }
 
 #[tokio::test]
+async fn the_search_index_answers_as_json() {
+    let served = served();
+    let (status, body, headers) = get(&served, "/search.json", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(String::from_utf8_lossy(&body).contains("/posts/hello-world/"));
+    assert!(headers.get("content-type").unwrap().to_str().unwrap().contains("json"));
+}
+
+#[tokio::test]
 async fn a_change_swaps_the_whole_site() {
     let site = tempfile::tempdir().unwrap();
     let content = site.path().join("content/posts/live");

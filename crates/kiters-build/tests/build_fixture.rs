@@ -31,6 +31,7 @@ fn builds_the_whole_site_with_drafts_and_scheduled_left_out() {
         "/pages/about/",
         "/",
         "/sitemap.xml",
+        "/search.json",
         "/rss.xml",
         "/404.html",
         "/posts/old-hello/",           // the alias
@@ -63,6 +64,9 @@ fn builds_the_whole_site_with_drafts_and_scheduled_left_out() {
     // Nowhere the draft or the scheduled item.
     let sitemap = std::fs::read_to_string(out.path().join("sitemap.xml")).unwrap();
     assert!(!sitemap.contains("miyue") && !sitemap.contains("scheduled"), "sitemap leaks");
+    let search = std::fs::read_to_string(out.path().join("search.json")).unwrap();
+    assert!(search.contains("/posts/hello-world/"), "search lost the post");
+    assert!(!search.contains("miyue"), "search leaks the draft");
     let home = std::fs::read_to_string(out.path().join("index.html")).unwrap();
     assert!(home.contains("/posts/hello-world/"), "home does not list the post");
     assert!(!home.contains("miyue"), "draft on the home page");
@@ -105,5 +109,5 @@ fn with_drafts_the_draft_stands_for_a_preview() {
     builder.plan.with_drafts = true;
     let (_site, _plan, _pages, report) = build_site(&builder).unwrap();
     assert!(out.path().join("posts/miyue-notes/index.html").is_file(), "draft not written");
-    assert_eq!(report.rendered, 14); // the 12 standing pages, the draft, the scheduled — a preview shows all
+    assert_eq!(report.rendered, 15); // the 13 standing pages, the draft, the scheduled — a preview shows all
 }

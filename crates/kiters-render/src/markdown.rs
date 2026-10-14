@@ -10,6 +10,8 @@ pub struct RenderOptions {
     /// The site's own files are the author's own words; this is the
     /// switch that trusts them.
     pub unsafe_html: bool,
+    /// Code blocks wear syntect color.
+    pub highlight: bool,
 }
 
 /// Renders markdown to HTML.

@@ -75,7 +75,11 @@ async fn route(State(served): State<Arc<Served>>, request: Request<Body>) -> Res
     response
         .headers_mut()
         .insert("x-kiters", HeaderValue::from_static("snapshot"));
-    if path.ends_with(".xml") {
+    if path.ends_with(".json") {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json; charset=utf-8"));
+    } else if path.ends_with(".xml") {
         response
             .headers_mut()
             .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/xml; charset=utf-8"));
