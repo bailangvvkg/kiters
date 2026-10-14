@@ -12,7 +12,6 @@
 use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
-use syntect::util::LinesWithEndings;
 
 /// The colors, looked up once and kept for the build's life.
 pub struct Highlighter {
@@ -39,7 +38,8 @@ impl Highlighter {
         let mut html = String::from("<pre class=\"code code-");
         html.push_str(language);
         html.push_str("\">");
-        for line in LinesWithEndings::new(&code) {
+        for line in code.split_inclusive('
+') {
             let ranges = highlighter.highlight_line(line, &self.syntaxes).ok()?;
             let said = syntect::html::styled_line_to_highlighted_html(&ranges[..], syntect::html::IncludeBackground::No).ok()?;
             html.push_str(&said);
