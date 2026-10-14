@@ -261,7 +261,7 @@ async fn remove(_auth: Authed, State(admin): State<Arc<Admin>>, Path(id): Path<S
         ),
         Err(WriteError::Missing) => json_status(StatusCode::NOT_FOUND, serde_json::json!({"error": "no such item"})),
         Err(WriteError::BadName(name)) => json_status(StatusCode::BAD_REQUEST, serde_json::json!({"error": format!("bad name: {name}")})),
-        Err(WriteError::Io(err)) => Err(json_status(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({"error": err.to_string()}))),
+        Err(WriteError::Io(err)) => json_status(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({"error": err.to_string()})),
         Err(WriteError::Exists) => unreachable!("delete never says exists"),
     }
 }
