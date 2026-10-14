@@ -1,13 +1,15 @@
 //! Watching the site, rebuilding it whole when it changes.
 
 use std::path::PathBuf;
-use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use notify::{Event, RecursiveMode, Watcher};
 
 use crate::Snapshot;
+use kiters_build::SiteBuilder;
+use kiters_wasm::WasmPlugin;
 
 /// Watches the site and rebuilds it whole on change, handing each whole
 /// rebuild to `swap`. Events land quietly: a burst of saves is one
@@ -18,12 +20,16 @@ use crate::Snapshot;
 /// nearest due time is waited out and the site rebuilt when it passes,
 /// so a scheduled page stands without anyone touching a thing. An idle
 /// minute with nothing due rebuilds nothing.
+///
+/// Plugins ride along: loaded once before the first build, run on every
+/// page of every rebuild.
 pub fn watch_and_rebuild(
     root: PathBuf,
     with_drafts: bool,
+    plugins: Vec<Arc<WasmPlugin>>,
     swap: impl Fn(Snapshot) + Send + 'static,
 ) -> anyhow::Result<()> {
-    let (tx, rx) = mpsc::channel::<Event>();
+    let (tx, rx) = std::sync::mpsc::channel::<Event>();
     let mut watcher = notify::recommended_watcher(move |result: Result<Event, _>| {
         if let Ok(event) = result {
             let _ = tx.send(event);
@@ -35,6 +41,10 @@ pub fn watch_and_rebuild(
         }
     }
 
+    // One builder config, many builds: the plugins live in it, shared
+    // whole from rebuild to rebuild.
+    let builder = Mutex::new(build_config(&root, &plugins));
+
     thread::spawn(move || {
         // The watcher lives as long as the thread: dropped here, it is
         // dropped when the watching ends.
@@ -44,8 +54,7 @@ pub fn watch_and_rebuild(
         loop {
             // The rebuild arm: the site says what it now is, and the
             // next due time is taken from what it said.
-            let rebuilt = Snapshot::build(&root, with_drafts);
-            match rebuilt {
+            match rebuild(&builder, with_drafts) {
                 Ok(snapshot) => {
                     waiting_for = snapshot.next_due();
                     swap(snapshot);
@@ -65,13 +74,13 @@ pub fn watch_and_rebuild(
             match rx.recv_timeout(timeout) {
                 Ok(event) if relevant(&event) => changed = true,
                 Ok(_) => {}
-                Err(mpsc::RecvTimeoutError::Timeout) => {
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                     let due_passed = waiting_for.is_some_and(|at| at <= chrono::Utc::now());
                     if !due_passed {
                         continue; // the clock ticked on a quiet site
                     }
                 }
-                Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
             }
             if changed {
                 quiet_until = Some(Instant::now() + Duration::from_millis(150));
@@ -89,6 +98,23 @@ pub fn watch_and_rebuild(
         }
     });
     Ok(())
+}
+
+/// The builder every rebuild runs with: the site's root and its
+/// plugins, nothing else — drafts and output are each build's own.
+fn build_config(root: &PathBuf, plugins: &[Arc<WasmPlugin>]) -> SiteBuilder<'static> {
+    let root: &'static std::path::Path = Box::leak(root.clone().into_boxed_path());
+    let mut builder = SiteBuilder::new(root);
+    for plugin in plugins {
+        builder = builder.hook_shared(plugin.clone());
+    }
+    builder
+}
+
+/// One whole rebuild through the shared builder config.
+fn rebuild(builder: &Mutex<SiteBuilder<'static>>, with_drafts: bool) -> anyhow::Result<Snapshot> {
+    let mut builder = builder.lock().expect("builder poisoned");
+    Snapshot::from_builder(&mut builder, with_drafts)
 }
 
 /// Whether an event is the site saying it changed — not a file merely

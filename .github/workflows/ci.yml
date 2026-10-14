@@ -16,6 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+      # The guests first: the host's plugin tests load them from the
+      # target directory, component-built and waiting.
+      - run: cargo build -p stamp-wasm -p skipper-wasm -p linkcard-lite --target wasm32-wasip2
       - run: cargo test --workspace
       - run: cargo build --release
 

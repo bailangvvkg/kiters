@@ -28,6 +28,11 @@ enum Command {
         /// Drafts stand in the site too; a preview wants this.
         #[arg(long)]
         drafts: bool,
+        /// A WebAssembly plugin (kiters:plugin world), loaded whole and
+        /// hooked into every moment of the build. May be given many
+        /// times; the plugins run in the order given.
+        #[arg(long)]
+        plugin: Vec<PathBuf>,
         /// Unsafe HTML in the prose is passed through.
         #[arg(long)]
         unsafe_html: bool,
@@ -58,6 +63,9 @@ enum Command {
         /// Serve exactly what was built; do not watch for changes.
         #[arg(long)]
         no_watch: bool,
+        /// A WebAssembly plugin, hooked into every rebuild.
+        #[arg(long)]
+        plugin: Vec<PathBuf>,
     },
 }
 
@@ -65,11 +73,14 @@ enum Command {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Command::Build { site, out, drafts, unsafe_html, cpuprofile, flamegraph, stats } => {
+        Command::Build { site, out, drafts, plugin, unsafe_html, cpuprofile, flamegraph, stats } => {
             let out = site.join(&out);
             let mut builder = SiteBuilder::new(&site).out(&out);
             builder.plan.with_drafts = drafts;
             builder.markdown.unsafe_html = unsafe_html;
+            for loaded in kiters_serve::load_plugins(&plugin)? {
+                builder = builder.hook_shared(loaded);
+            }
 
             // The instruments hang off the whole build: sampling starts
             // before the first file is read and is read out after the
@@ -93,8 +104,8 @@ async fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Serve { site, addr, drafts, no_watch } => {
-            kiters_serve::serve(site, addr, !no_watch, drafts).await
+        Command::Serve { site, addr, drafts, no_watch, plugin } => {
+            kiters_serve::serve(site, addr, !no_watch, drafts, plugin).await
         }
     }
 }

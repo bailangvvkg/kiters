@@ -122,7 +122,7 @@ async fn a_change_swaps_the_whole_site() {
 
     // The watcher takes the site from here: every change rebuilds the
     // whole site and swaps it in whole.
-    kiters_serve::watch_and_rebuild(site.path().to_path_buf(), false, {
+    kiters_serve::watch_and_rebuild(site.path().to_path_buf(), false, Vec::new(), {
         let snapshot = snapshot.clone();
         move |rebuilt| snapshot.store(std::sync::Arc::new(rebuilt))
     })

@@ -1,0 +1,12 @@
+[package]
+name = "linkcard-lite"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wit-bindgen = "0.62"

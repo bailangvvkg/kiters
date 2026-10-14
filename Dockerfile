@@ -7,7 +7,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY apps ./apps
 COPY tests ./tests
-RUN cargo build --release
+# The one binary that ships; the plugins build for wasm, not for here.
+RUN cargo build --release -p kiters-cli
 
 FROM alpine:3
 COPY --from=build /src/target/release/kiters /usr/local/bin/kiters

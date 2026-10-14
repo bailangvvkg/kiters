@@ -56,6 +56,13 @@ impl<'a> SiteBuilder<'a> {
         self.hooks = std::mem::take(&mut self.hooks).add(hook);
         self
     }
+
+    /// Adds a hook already shared to the build's chain — a plugin,
+    /// loaded once and run on every build, wants this.
+    pub fn hook_shared(mut self, hook: std::sync::Arc<dyn kiters_core::Hook>) -> Self {
+        self.hooks = std::mem::take(&mut self.hooks).add_shared(hook);
+        self
+    }
 }
 
 /// Reads a site, plans it, and pre-renders every page of the plan.

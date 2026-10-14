@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "apps/*"]
+members = ["crates/*", "apps/*", "plugins/*"]
 
 [workspace.package]
 edition = "2021"
@@ -21,5 +21,6 @@ kiters-parse = { path = "crates/kiters-parse" }
 kiters-render = { path = "crates/kiters-render" }
 kiters-build = { path = "crates/kiters-build" }
 kiters-serve = { path = "crates/kiters-serve" }
+kiters-wasm = { path = "crates/kiters-wasm" }
 tempfile = "3"
 pprof = { version = "0.13", default-features = false, features = ["prost-codec", "flamegraph", "cpp"] }

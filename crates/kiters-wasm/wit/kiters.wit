@@ -1,0 +1,100 @@
+package kiters:plugin@0.1.0;
+
+/// What a plugin sees, and the moments it is invited to.
+///
+/// Every export is a moment of the build; a plugin that does not care
+/// about one returns what it was given, unchanged. The build runs each
+/// moment through each plugin in order; the first plugin to fail fails
+/// the build — named after the plugin and the moment.
+interface types {
+    /// An item of content, as the plugin sees it.
+    record item {
+        /// The item's ULID, unchanged from birth to grave.
+        id: string,
+        title: string,
+        /// The item's address in the site, as `/posts/slug/`.
+        url: string,
+        /// The prose, still markdown at `on-front-matter`.
+        body: string,
+        /// `published`, `draft`, or `scheduled`.
+        status: string,
+        /// RFC 3339, when the item says it is.
+        date: option<string>,
+        /// Addresses this item has answered under before.
+        aliases: list<string>,
+        /// The taxonomies the item carries.
+        taxonomies: list<taxonomy>,
+    }
+
+    /// One taxonomy and its terms, as an item carries them.
+    record taxonomy {
+        name: string,
+        terms: list<string>,
+    }
+
+    /// A target of the plan: an address, where it lands, what it is.
+    record planned {
+        url: string,
+        out: string,
+        /// `item`, `home`, `not-found`, `alias`, `taxonomy:<name>`,
+        /// `term:<name>/<term>`, or `extra:<name>`.
+        kind: string,
+    }
+
+    /// What a plugin says about a target: take it out, or keep it —
+    /// moved, renamed, or as it was.
+    variant outcome {
+        skip,
+        keep(planned),
+    }
+
+    /// A finished page: layout, head, everything.
+    record page {
+        url: string,
+        status: u16,
+        html: string,
+    }
+
+    /// The whole build, said in numbers.
+    record report {
+        items: u32,
+        drafts: u32,
+        rendered: u32,
+        written: u32,
+        took-ms: u32,
+    }
+}
+
+world plugin {
+    use types.{item, planned, outcome, page, report};
+
+    /// A content file is found, before anything is read. True takes the
+    /// file out of the build entirely.
+    export on-discover: func(path: string, kind: string) -> bool;
+
+    /// An item's front matter is parsed; the item is open to shaping —
+    /// filling a slug, a date, a status a file left blank. The item
+    /// returned is the item built.
+    export on-front-matter: func(item: item) -> item;
+
+    /// The prose of an item, still markdown — where a link becomes a
+    /// card and a diagram becomes a figure. The body returned is the
+    /// body rendered.
+    export on-markdown: func(url: string, body: string) -> string;
+
+    /// A target is planned; the one place a plugin takes a page out of
+    /// the site, or moves where it lands.
+    export on-target: func(target: planned) -> outcome;
+
+    /// The prose as HTML, before the layout wraps it. Last look at the
+    /// body alone.
+    export on-html: func(url: string, html: string) -> string;
+
+    /// A page is finished. The last word on the bytes; what this leaves
+    /// is what the reader reads.
+    export on-page: func(page: page) -> page;
+
+    /// The build is complete: every page rendered, nothing written yet.
+    /// Read-only; nothing returned is kept.
+    export on-build-complete: func(report: report);
+}

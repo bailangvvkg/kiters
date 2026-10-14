@@ -8,6 +8,7 @@ license.workspace = true
 kiters-core.workspace = true
 kiters-build.workspace = true
 kiters-parse.workspace = true
+kiters-wasm.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 arc-swap = "1"
