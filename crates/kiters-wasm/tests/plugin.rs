@@ -85,7 +85,7 @@ fn linkcard_draws_a_card_from_a_code_block() {
     assert!(!said.contains("language-card"), "the block stayed: {said}");
     // The page dresses: one stylesheet at the head, one script at the
     // body's end.
-    assert_eq!(said.matches(".kite-card {").count(), 1, "style said more than once");
+    assert_eq!(said.matches("<style>").count(), 1, "style said more than once");
     assert_eq!(said.matches("Linkcard: fills in").count(), 1, "script said more than once");
     assert!(said.find("<style>").unwrap() < said.find("</head>").unwrap(), "style not at head");
     assert!(said.find("window.KiteLinkCard").unwrap() > said.find("</main>").unwrap(), "script not at body's end");

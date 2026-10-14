@@ -202,18 +202,27 @@ fn find_tag(html: &str, open: &str, close: &str) -> Option<TagHit> {
 }
 
 /// A tag's attributes, as they were typed — plain or escaped the same.
+/// A value is what a pair of quotes holds; an attribute without them is
+/// not one of ours and stops the reading.
 fn attrs_of(tag: &str) -> Vec<(String, String)> {
     let mut attrs = Vec::new();
     let mut rest = tag;
     while let Some(eq) = rest.find('=') {
-        let name: String = rest[..eq].chars().rev().take_while(|c| c.is_alphanumeric() || *c == '-').collect::<Vec<_>>().into_iter().rev().collect();
-        let after = &rest[eq + 1..];
-        let Some(close) = after.find('"') else { break };
-        let value = unescape(&after[1..close]);
+        let name: String = rest[..eq]
+            .chars()
+            .rev()
+            .take_while(|c| c.is_alphanumeric() || *c == '-')
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        let Some(quoted) = rest[eq + 1..].strip_prefix('"') else { break };
+        let Some(close) = quoted.find('"') else { break };
+        let value = unescape(&quoted[..close]);
         if !name.is_empty() {
             attrs.push((name, value));
         }
-        rest = &after[close + 1..];
+        rest = &quoted[close + 1..];
     }
     attrs
 }
