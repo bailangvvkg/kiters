@@ -186,7 +186,7 @@ mod tests {
     fn ranges_become_fors() {
         let (jinja, report) = migrate("{{ range .Pages }}<a>{{ .Title }}</a>{{ end }}");
         assert_eq!(jinja, "{% for page in pages %}<a>{{ page.title }}</a>{% endfor %}");
-        assert_eq!(report.converted, 4);
+        assert_eq!(report.converted, 3);
     }
 
     #[test]
