@@ -23,7 +23,9 @@ bindgen!({ path: "wit", world: "plugin" });
 /// imports nothing. Kept as a type so imports have a place to land.
 pub struct PluginState;
 
-impl wasmtime::component::HasData for PluginState {}
+impl wasmtime::component::HasData for PluginState {
+    type Data<'a> = PluginState;
+}
 
 /// How much fuel one call may burn: enough for any honest transform,
 /// not enough for a loop that never ends.
