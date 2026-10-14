@@ -176,7 +176,7 @@ async fn preview_renders_and_forgets() {
         "POST",
         "/api/preview",
         &authed,
-        Some(br#"{"body":"# 标题\n\n{{< note 注意 >}}短代码也算{{< /note >}}"}"#.to_vec()),
+        Some(br##"{"body":"# 标题\n\n{{< note 注意 >}}短代码也算{{< /note >}}"}"##.to_vec()),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
