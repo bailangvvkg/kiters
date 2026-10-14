@@ -60,7 +60,7 @@ impl Sessions {
             }
             // Same length, then every byte folded: no early exit for
             // anyone to listen for.
-            if !same(&self.token(exp), value) {
+            if !same(self.token(exp).as_bytes(), value.as_bytes()) {
                 return false;
             }
             return true;
