@@ -87,6 +87,19 @@ async fn route(State(served): State<Arc<Served>>, request: Request<Body>) -> Res
     response
 }
 
+/// What a served site runs with.
+pub struct ServeOptions {
+    pub with_drafts: bool,
+    pub plugins: Vec<std::path::PathBuf>,
+    pub theme: Option<String>,
+}
+
+impl Default for ServeOptions {
+    fn default() -> Self {
+        ServeOptions { with_drafts: false, plugins: Vec::new(), theme: None }
+    }
+}
+
 /// Loads every plugin named, one engine shared among them. No paths,
 /// no plugins — the ordinary build of an ordinary site.
 pub fn load_plugins(paths: &[std::path::PathBuf]) -> anyhow::Result<Vec<Arc<kiters_wasm::WasmPlugin>>> {
@@ -107,12 +120,15 @@ pub async fn serve(
     root: std::path::PathBuf,
     addr: SocketAddr,
     with_watch: bool,
-    with_drafts: bool,
-    plugins: Vec<std::path::PathBuf>,
+    options: ServeOptions,
     admin_password: Option<String>,
 ) -> anyhow::Result<()> {
-    let hooks = load_plugins(&plugins)?;
+    let ServeOptions { with_drafts, plugins, theme } = &options;
+    let hooks = load_plugins(plugins)?;
     let mut builder = SiteBuilder::new(&root);
+    if let Some(name) = theme {
+        builder = builder.theme(name);
+    }
     for hook in &hooks {
         builder = builder.hook_shared(hook.clone());
     }
@@ -129,7 +145,7 @@ pub async fn serve(
     );
 
     if with_watch {
-        watch_and_rebuild(root.clone(), with_drafts, hooks, move |rebuilt| {
+        watch_and_rebuild(root.clone(), options, move |rebuilt| {
             snapshot.store(Arc::new(rebuilt));
         })?;
     }

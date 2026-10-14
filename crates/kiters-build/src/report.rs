@@ -45,6 +45,13 @@ impl<'a> SiteBuilder<'a> {
         self
     }
 
+    /// Wears a theme of the site's own: `themes/<name>/` says the
+    /// pages it says, and the built-ins answer the rest.
+    pub fn theme(mut self, name: &str) -> Self {
+        self.layout = kiters_render::Layout::theme(self.root.join("themes").join(name));
+        self
+    }
+
     /// Renders in memory only; nothing is written.
     pub fn no_write(mut self) -> Self {
         self.out = None;

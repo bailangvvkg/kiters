@@ -7,7 +7,8 @@
 
 use minijinja::{context, Environment};
 
-/// Renders pages in the built-in layout.
+/// Renders pages in the built-in layout, or in a theme's — a theme is
+/// just a directory whose templates answer before the built-ins do.
 pub struct Layout {
     env: Environment<'static>,
 }
@@ -15,19 +16,53 @@ pub struct Layout {
 impl Layout {
     /// A layout with the built-in templates.
     pub fn builtin() -> Self {
+        Self::with_loader(Box::new(|name| None))
+    }
+
+    /// A layout wearing a theme: its templates answer first, and what
+    /// the theme does not say, the built-ins do. A theme is not a
+    /// fork of the site — it is the site's own clothes.
+    pub fn theme(dir: impl Into<std::path::PathBuf>) -> Self {
+        let dir = dir.into();
+        Self::with_loader(Box::new(move |name| {
+            // The theme speaks its templates by file name; the built-in
+            // bodies arrive ready-made and are not files to read.
+            if name.starts_with("builtin:") {
+                return None;
+            }
+            std::fs::read_to_string(dir.join(name)).ok()
+        }))
+    }
+
+    fn with_loader(theme: Box<dyn Fn(&str) -> Option<String> + Send + Sync>) -> Self {
         let mut env = Environment::new();
-        env.add_template("page.html", PAGE).expect("built-in page template");
-        env.add_template("sitemap.xml", SITEMAP).expect("built-in sitemap template");
-        env.add_template("rss.xml", RSS).expect("built-in rss template");
+        env.set_loader(move |name| {
+            if let Some(found) = theme(name) {
+                return Some(Ok(found));
+            }
+            builtins()
+                .iter()
+                .find(|(known, _)| *known == name)
+                .map(|(_, text)| Ok(text.to_string()))
+        });
         Layout { env }
+    }
+
+    /// Whether the layout's own templates say this one.
+    fn says(&self, name: &str) -> bool {
+        self.env.get_template(name).is_ok()
+    }
+
+    fn say(&self, name: &str, values: minijinja::Value) -> String {
+        self.env
+            .get_template(name)
+            .and_then(|t| t.render(values))
+            .unwrap_or_default()
     }
 
     /// A page: the body — already HTML — in the site's skeleton.
     pub fn page(&self, site: &kiters_core::SiteMeta, title: &str, body_html: &str) -> String {
-        self.env
-            .get_template("page.html")
-            .and_then(|t| t.render(context! { site => site, title => title, body => body_html }))
-            .unwrap_or_default()
+        self.say("page.html", context! { site => site, title => title, body => body_html })
     }
 
     /// The home page: the site's name and its items, newest first.
@@ -36,8 +71,23 @@ impl Layout {
     }
 
     /// A list page: a title and the items under it, newest first — the
-    /// home page is one, a term's page is one.
+    /// home page is one, a term's page is one. A theme that says
+    /// `list.html` says the whole page; one that does not inherits the
+    /// built-in list in its own skeleton.
     pub fn list(&self, site: &kiters_core::SiteMeta, title: &str, items: &[kiters_core::Content]) -> String {
+        let listed: Vec<minijinja::Value> = items
+            .iter()
+            .map(|item| {
+                context! {
+                    title => item.front.title,
+                    url => item.url(),
+                    date => item.front.date.map(|d| d.date_naive().to_string()),
+                }
+            })
+            .collect();
+        if self.says("list.html") {
+            return self.say("list.html", context! { site => site, title => title, items => listed });
+        }
         let mut body = String::from("<article class=\"list\">\n");
         for item in items {
             body.push_str(&format!(
@@ -54,8 +104,11 @@ impl Layout {
     /// An alias page: an address that says where its item lives now.
     /// Served as a page rather than a redirect, for a page carries the
     /// new address in it — and lands, even for the reader nothing runs
-    /// for.
+    /// for. A theme that says `alias.html` says the whole page.
     pub fn alias(&self, site: &kiters_core::SiteMeta, to: &str) -> String {
+        if self.says("alias.html") {
+            return self.say("alias.html", context! { site => site, to => to });
+        }
         let to = escape_attr(to);
         let body = format!(
             "<p>这个地址搬家了:<a href=\"{to}\">{to}</a></p>\n\
@@ -65,27 +118,35 @@ impl Layout {
         self.page(site, "搬家了", &body)
     }
 
-    /// The not-found page, rendered like any other.
+    /// The not-found page, rendered like any other. A theme that says
+    /// `notfound.html` says the whole page.
     pub fn not_found(&self, site: &kiters_core::SiteMeta) -> String {
+        if self.says("notfound.html") {
+            return self.say("notfound.html", context! { site => site });
+        }
         self.page(site, "页面不存在", "<p>这里没有内容。<a href=\"/\">回到首页</a></p>")
     }
 
     /// The sitemap: every public address, one line each.
     pub fn sitemap(&self, site: &kiters_core::SiteMeta, urls: &[String]) -> String {
-        self.env
-            .get_template("sitemap.xml")
-            .and_then(|t| t.render(context! { site => site, urls => urls }))
-            .unwrap_or_default()
+        self.say("sitemap.xml", context! { site => site, urls => urls })
     }
 
     /// The feed: (url, title, rfc3339 date, description) tuples, newest
     /// first.
     pub fn rss(&self, site: &kiters_core::SiteMeta, items: &[(String, String, String, String)]) -> String {
-        self.env
-            .get_template("rss.xml")
-            .and_then(|t| t.render(context! { site => site, items => items }))
-            .unwrap_or_default()
+        self.say("rss.xml", context! { site => site, items => items })
     }
+}
+
+/// The built-in templates: page, sitemap, rss — and a theme that does
+/// not speak one of them falls to these.
+fn builtins() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("page.html", PAGE),
+        ("sitemap.xml", SITEMAP),
+        ("rss.xml", RSS),
+    ]
 }
 
 /// The skeleton every built-in page wears. `body` arrives as HTML and is

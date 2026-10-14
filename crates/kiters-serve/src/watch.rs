@@ -25,10 +25,10 @@ use kiters_wasm::WasmPlugin;
 /// page of every rebuild.
 pub fn watch_and_rebuild(
     root: PathBuf,
-    with_drafts: bool,
-    plugins: Vec<Arc<WasmPlugin>>,
+    options: crate::ServeOptions,
     swap: impl Fn(Snapshot) + Send + 'static,
 ) -> anyhow::Result<()> {
+    let plugins = crate::load_plugins(&options.plugins)?;
     let (tx, rx) = std::sync::mpsc::channel::<Event>();
     let mut watcher = notify::recommended_watcher(move |result: Result<Event, _>| {
         if let Ok(event) = result {
@@ -43,7 +43,7 @@ pub fn watch_and_rebuild(
 
     // One builder config, many builds: the plugins live in it, shared
     // whole from rebuild to rebuild.
-    let builder = Mutex::new(build_config(&root, &plugins));
+    let builder = Mutex::new(build_config(&root, &options.theme, &plugins));
 
     thread::spawn(move || {
         // The watcher lives as long as the thread: dropped here, it is
@@ -54,7 +54,7 @@ pub fn watch_and_rebuild(
         loop {
             // The rebuild arm: the site says what it now is, and the
             // next due time is taken from what it said.
-            match rebuild(&builder, with_drafts) {
+            match rebuild(&builder, options.with_drafts) {
                 Ok(snapshot) => {
                     waiting_for = snapshot.next_due();
                     swap(snapshot);
@@ -102,9 +102,12 @@ pub fn watch_and_rebuild(
 
 /// The builder every rebuild runs with: the site's root and its
 /// plugins, nothing else — drafts and output are each build's own.
-fn build_config(root: &PathBuf, plugins: &[Arc<WasmPlugin>]) -> SiteBuilder<'static> {
+fn build_config(root: &PathBuf, theme: &Option<String>, plugins: &[Arc<WasmPlugin>]) -> SiteBuilder<'static> {
     let root: &'static std::path::Path = Box::leak(root.clone().into_boxed_path());
     let mut builder = SiteBuilder::new(root);
+    if let Some(name) = theme {
+        builder = builder.theme(name);
+    }
     for plugin in plugins {
         builder = builder.hook_shared(plugin.clone());
     }

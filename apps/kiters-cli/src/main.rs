@@ -36,6 +36,9 @@ enum Command {
         /// Unsafe HTML in the prose is passed through.
         #[arg(long)]
         unsafe_html: bool,
+        /// Wear a theme of the site's own (`themes/<name>/`).
+        #[arg(long)]
+        theme: Option<String>,
         /// Writes a CPU profile of the whole build, gzipped, in Go's
         /// pprof format — `go tool pprof -top kiters <file>` reads it as
         /// it reads any Go profile. Linux.
@@ -70,6 +73,9 @@ enum Command {
         /// media, preview, export) once said. No password, no admin.
         #[arg(long)]
         admin: Option<String>,
+        /// Wear a theme of the site's own (`themes/<name>/`).
+        #[arg(long)]
+        theme: Option<String>,
     },
 }
 
@@ -77,11 +83,14 @@ enum Command {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Command::Build { site, out, drafts, plugin, unsafe_html, cpuprofile, flamegraph, stats } => {
+        Command::Build { site, out, drafts, plugin, unsafe_html, theme, cpuprofile, flamegraph, stats } => {
             let out = site.join(&out);
             let mut builder = SiteBuilder::new(&site).out(&out);
             builder.plan.with_drafts = drafts;
             builder.markdown.unsafe_html = unsafe_html;
+            if let Some(name) = &theme {
+                builder = builder.theme(name);
+            }
             for loaded in kiters_serve::load_plugins(&plugin)? {
                 builder = builder.hook_shared(loaded);
             }
@@ -108,9 +117,14 @@ async fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Serve { site, addr, drafts, no_watch, plugin, admin } => {
+        Command::Serve { site, addr, drafts, no_watch, plugin, admin, theme } => {
             let password = admin.or_else(|| std::env::var("KITERS_ADMIN_PASSWORD").ok());
-            kiters_serve::serve(site, addr, !no_watch, drafts, plugin, password).await
+            let options = kiters_serve::ServeOptions {
+                with_drafts: drafts,
+                plugins: plugin,
+                theme,
+            };
+            kiters_serve::serve(site, addr, !no_watch, options, password).await
         }
     }
 }
