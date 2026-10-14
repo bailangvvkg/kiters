@@ -7,7 +7,8 @@ use axum::Router;
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 
-type Resp = (StatusCode, String, Vec<u8>);
+/// The headers of a logged-in writer.
+type Authed = Vec<(&'static str, String)>;
 
 fn site() -> tempfile::TempDir {
     let site = tempfile::tempdir().unwrap();
@@ -15,13 +16,11 @@ fn site() -> tempfile::TempDir {
     site
 }
 
-fn app(site: &tempfile::TempDir) -> Router {
-    kiters_admin::router(site.path(), "sekrit")
+fn app(of: &tempfile::TempDir) -> Router {
+    kiters_admin::router(of.path(), "sekrit")
 }
 
-/// One call, any headers, any body. Returns status, body as text, body
-/// as bytes.
-async fn call(app: &Router, method: &str, uri: &str, headers: &[(&str, String)], body: Option<Vec<u8>>) -> Resp {
+async fn call(app: &Router, method: &str, uri: &str, headers: &[(&str, String)], body: Option<Vec<u8>>) -> (StatusCode, String, Vec<u8>) {
     let mut builder = Request::builder().method(method).uri(uri);
     for (name, value) in headers {
         builder = builder.header(*name, value);
@@ -33,8 +32,9 @@ async fn call(app: &Router, method: &str, uri: &str, headers: &[(&str, String)],
     (status, String::from_utf8_lossy(&bytes).into_owned(), bytes)
 }
 
-async fn login(app: &Router) -> Vec<(String, String)> {
-    let (status, _, _) = call(app, "POST", "/api/login", &[("content-type", "application/json".into())], Some(r#"{"password":"wrong"}"#.as_bytes().to_vec())).await;
+/// A wrong password refused, the right one answered with its cookie.
+async fn login(app: &Router) -> Authed {
+    let (status, _, _) = call(app, "POST", "/api/login", &[("content-type", "application/json".to_string())], Some(br#"{"password":"wrong"}"#.to_vec())).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "a wrong password logged in");
 
     let response = app
@@ -44,7 +44,7 @@ async fn login(app: &Router) -> Vec<(String, String)> {
                 .method("POST")
                 .uri("/api/login")
                 .header("content-type", "application/json")
-                .body(Body::from(r#"{"password":"sekrit"}"#))
+                .body(Body::from(br#"{"password":"sekrit"}"#.to_vec()))
                 .unwrap(),
         )
         .await
@@ -57,32 +57,20 @@ async fn login(app: &Router) -> Vec<(String, String)> {
         .and_then(|v| v.split(';').next())
         .expect("login set no cookie")
         .to_string();
-    vec![("cookie", cookie), ("content-type", "application/json".into())]
+    vec![("cookie", cookie), ("content-type", "application/json".to_string())]
 }
 
-fn json_headers(authed: &[(String, String)]) -> Vec<(&str, String)> {
-    let mut headers: Vec<(&str, String)> = Vec::new();
-    for (name, value) in authed {
-        // The two names the tests carry are stable.
-        if name == "cookie" {
-            headers.push(("cookie", value.clone()));
-        } else if name == "content-type" {
-            headers.push(("content-type", value.clone()));
-        }
-    }
+fn with_if_match(authed: &[(&'static str, String)], revision: &str) -> Vec<(&'static str, String)> {
+    let mut headers: Vec<(&'static str, String)> = authed.to_vec();
+    headers.push(("if-match", revision.to_string()));
     headers
 }
 
-async fn create(app: &Router, authed: &[(String, String)], slug: &str) -> String {
-    let item = format!(
-        r#"{{"kind":"posts","slug":"{slug}","title":"{slug}","status":"draft","body":"一"}}"#
-    );
-    let (status, body, _) = call(app, "POST", "/api/contents", &json_headers(authed), Some(item.into_bytes())).await;
+async fn create(app: &Router, authed: &[(&'static str, String)], slug: &str) -> String {
+    let item = format!(r#"{{"kind":"posts","slug":"{slug}","title":"{slug}","status":"draft","body":"一"}}"#);
+    let (status, body, _) = call(app, "POST", "/api/contents", authed, Some(item.into_bytes())).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
-    serde_json::from_str::<serde_json::Value>(&body).unwrap()["revision"]
-        .as_str()
-        .unwrap()
-        .to_string()
+    serde_json::from_str::<serde_json::Value>(&body).unwrap()["revision"].as_str().unwrap().to_string()
 }
 
 #[tokio::test]
@@ -91,7 +79,7 @@ async fn login_gates_everything() {
     let app = app(&site);
     let authed = login(&app).await;
 
-    let (status, body, _) = call(&app, "GET", "/api/session", &json_headers(&authed), None).await;
+    let (status, body, _) = call(&app, "GET", "/api/session", &authed, None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.contains("admin"), "{body}");
 
@@ -107,7 +95,6 @@ async fn the_life_of_an_item() {
     let site = site();
     let app = app(&site);
     let authed = login(&app).await;
-    let headers = json_headers(&authed);
 
     // Create: kind said, the file is the truth.
     let revision = create(&app, &authed, "first").await;
@@ -115,24 +102,23 @@ async fn the_life_of_an_item() {
     assert!(raw.contains("title: first"), "{raw}");
 
     // Read it back.
-    let (status, body, _) = call(&app, "GET", "/api/contents/posts:first", &headers, None).await;
+    let (status, body, _) = call(&app, "GET", "/api/contents/posts:first", &authed, None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains(&revision), "{body}");
 
     // List sees it.
-    let (status, body, _) = call(&app, "GET", "/api/contents?kind=posts", &headers, None).await;
+    let (status, body, _) = call(&app, "GET", "/api/contents?kind=posts", &authed, None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("posts:first"), "{body}");
 
     // An update must say what it believes it is writing over.
     let item = r#"{"kind":"posts","title":"first","status":"published","body":"二"}"#;
-    let (status, _, _) = call(&app, "PUT", "/api/contents/posts:first", &headers, Some(item.into_bytes())).await;
+    let (status, _, _) = call(&app, "PUT", "/api/contents/posts:first", &authed, Some(item.as_bytes().to_vec())).await;
     assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
 
     // The honest update: If-Match says the revision we read.
-    let mut honest = headers.clone();
-    honest.push(("if-match", revision.clone()));
-    let (status, body, _) = call(&app, "PUT", "/api/contents/posts:first", &honest, Some(item.into_bytes())).await;
+    let honest = with_if_match(&authed, &revision);
+    let (status, body, _) = call(&app, "PUT", "/api/contents/posts:first", &honest, Some(item.as_bytes().to_vec())).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let next = serde_json::from_str::<serde_json::Value>(&body).unwrap()["revision"].as_str().unwrap().to_string();
     assert_ne!(next, revision, "the revision did not move");
@@ -142,7 +128,7 @@ async fn the_life_of_an_item() {
     assert!(raw.contains("二") && raw.contains("published"), "{raw}");
 
     // The old revision no longer opens the door.
-    let (status, body, _) = call(&app, "PUT", "/api/contents/posts:first", &honest, Some(item.into_bytes())).await;
+    let (status, body, _) = call(&app, "PUT", "/api/contents/posts:first", &honest, Some(item.as_bytes().to_vec())).await;
     assert_eq!(status, StatusCode::CONFLICT, "{body}");
     assert!(body.contains("current_revision"), "{body}");
 }
@@ -156,16 +142,16 @@ async fn if_match_gates_the_second_writer() {
 
     // Two writers, both believing the same revision. Exactly one wins;
     // the other is told what is true now.
-    let mut one = json_headers(&authed);
-    one.push(("if-match", revision.clone()));
-    let mut two = json_headers(&authed);
-    two.push(("if-match", revision));
-    let body_one = r#"{"kind":"posts","title":"race","status":"draft","body":"乙"}"#.to_string();
-    let body_two = r#"{"kind":"posts","title":"race","status":"draft","body":"丙"}"#.to_string();
+    let one_headers = with_if_match(&authed, &revision);
+    let two_headers = with_if_match(&authed, &revision);
     let app_one = app.clone();
     let app_two = app.clone();
-    let first = tokio::spawn(async move { call(&app_one, "PUT", "/api/contents/posts:race", &one, Some(body_one.into_bytes())).await });
-    let second = tokio::spawn(async move { call(&app_two, "PUT", "/api/contents/posts:race", &two, Some(body_two.into_bytes())).await });
+    let first = tokio::spawn(async move {
+        call(&app_one, "PUT", "/api/contents/posts:race", &one_headers, Some(br#"{"kind":"posts","title":"race","status":"draft","body":"乙"}"#.to_vec())).await
+    });
+    let second = tokio::spawn(async move {
+        call(&app_two, "PUT", "/api/contents/posts:race", &two_headers, Some(br#"{"kind":"posts","title":"race","status":"draft","body":"丙"}"#.to_vec())).await
+    });
     let one = first.await.unwrap();
     let two = second.await.unwrap();
     let outcomes = [one.0, two.0];
@@ -185,12 +171,17 @@ async fn preview_renders_and_forgets() {
     let site = site();
     let app = app(&site);
     let authed = login(&app).await;
-    let item = r#"{"body":"# 标题\n\n{{< note 注意 >}}短代码也算{{< /note >}}"}"#;
-    let (status, body, _) = call(&app, "POST", "/api/preview", &json_headers(&authed), Some(item.into_bytes())).await;
+    let (status, body, _) = call(
+        &app,
+        "POST",
+        "/api/preview",
+        &authed,
+        Some(br#"{"body":"# 标题\n\n{{< note 注意 >}}短代码也算{{< /note >}}"}"#.to_vec()),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("<h1>"), "{body}");
     assert!(body.contains("Note: 注意"), "{body}");
-    assert!(body.contains("no-store") || true); // the header is checked by hand below
 }
 
 #[tokio::test]
@@ -205,7 +196,7 @@ async fn export_then_import_round_trip() {
 
     let app = app(&site);
     let authed = login(&app).await;
-    let (status, _, zip) = call(&app, "GET", "/api/export", &json_headers(&authed), None).await;
+    let (status, _, zip) = call(&app, "GET", "/api/export", &authed, None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(zip.starts_with(b"PK"), "not a zip");
 
@@ -213,9 +204,9 @@ async fn export_then_import_round_trip() {
     let other = site();
     let app2 = app(&other);
     let authed2 = login(&app2).await;
-    let mut headers = json_headers(&authed2);
-    headers.push(("content-type", "application/zip".into()));
-    let (status, body, _) = call(&app2, "POST", "/api/import", &headers, Some(zip.clone())).await;
+    let mut headers = authed2.clone();
+    headers.push(("content-type", "application/zip".to_string()));
+    let (status, body, _) = call(&app2, "POST", "/api/import", &headers, Some(zip)).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let value: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert!(value["written"].as_u64().unwrap() >= 1, "{value}");
@@ -231,14 +222,12 @@ async fn delete_takes_the_item_out_revision_first() {
     let revision = create(&app, &authed, "gone").await;
 
     // A stale belief does not delete anything.
-    let mut stale = json_headers(&authed);
-    stale.push(("if-match", "0000000000000000".into()));
+    let stale = with_if_match(&authed, "0000000000000000");
     let (status, _, _) = call(&app, "DELETE", "/api/contents/posts:gone", &stale, None).await;
     assert_eq!(status, StatusCode::CONFLICT);
     assert!(site.path().join("content/posts/gone").exists());
 
-    let mut honest = json_headers(&authed);
-    honest.push(("if-match", revision));
+    let honest = with_if_match(&authed, &revision);
     let (status, _, _) = call(&app, "DELETE", "/api/contents/posts:gone", &honest, None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert!(!site.path().join("content/posts/gone").exists());
@@ -253,14 +242,13 @@ async fn media_round_trip_and_no_traveling() {
     let boundary = "k1t3rs";
     let png: &str = "\u{89}PNG-not-really";
     let body = format!(
-        "--{b}\r\ncontent-disposition: form-data; name=\"file\"; filename=\"tu.png\"\r\ncontent-type: image/png\r\n\r\n{png}\r\n--{b}--\r\n"
+        "--{boundary}\r\ncontent-disposition: form-data; name=\"file\"; filename=\"tu.png\"\r\ncontent-type: image/png\r\n\r\n{png}\r\n--{boundary}--\r\n"
     );
-    let mut headers: Vec<(&str, String)> = Vec::new();
-    for (name, value) in json_headers(&authed) {
-        if name != "content-type" {
-            headers.push((name, value));
-        }
-    }
+    let mut headers: Vec<(&'static str, String)> = authed
+        .iter()
+        .filter(|(name, _)| *name == "cookie")
+        .map(|(name, value)| (*name, value.clone()))
+        .collect();
     headers.push(("content-type", format!("multipart/form-data; boundary={boundary}")));
     let (status, body, _) = call(&app, "POST", "/api/media", &headers, Some(body.into_bytes())).await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
@@ -268,12 +256,12 @@ async fn media_round_trip_and_no_traveling() {
     assert!(url.ends_with(".png"), "{url}");
 
     // The media answers, as itself.
-    let (status, _, bytes) = call(&app, "GET", &url, &json_headers(&authed), None).await;
+    let (status, _, bytes) = call(&app, "GET", &url, &authed, None).await;
     assert_eq!(status, StatusCode::OK);
-    assert!(bytes.starts_with(&[0x89]) || !bytes.is_empty(), "the bytes did not come back");
+    assert!(!bytes.is_empty(), "the bytes did not come back");
 
     // And no one travels anywhere.
-    let (status, _, _) = call(&app, "GET", "/media/..%2f..%2fkite.yaml", &json_headers(&authed), None).await;
+    let (status, _, _) = call(&app, "GET", "/media/..%2f..%2fkite.yaml", &authed, None).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "traveled out of the media tree");
 }
 
@@ -286,8 +274,8 @@ async fn kind_is_not_optional_on_create() {
         &app,
         "POST",
         "/api/contents",
-        &json_headers(&authed),
-        Some(r#"{"slug":"nokind","title":"无类","body":"x"}"#.as_bytes().to_vec()),
+        &authed,
+        Some(br#"{"slug":"nokind","title":"无类","body":"x"}"#.to_vec()),
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
