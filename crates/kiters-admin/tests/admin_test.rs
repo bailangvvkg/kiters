@@ -201,7 +201,7 @@ async fn export_then_import_round_trip() {
     assert!(zip.starts_with(b"PK"), "not a zip");
 
     // Into a second site: the zip says what the first site said.
-    let other = site();
+    let other = make_site();
     let app2 = make_app(&other);
     let authed2 = login(&app2).await;
     let mut headers = authed2.clone();
