@@ -87,8 +87,8 @@ tests/fixture/    中文示例站(3 发布 + 1 草稿 + 1 定时,别名/税目/�
 - [x] M1 预渲染内核
 - [x] M2 serve:快照换血 + watch + 压缩协商 + 短代码 + 别名页 + 税目页 + 定时发布
 - [x] M3 wasmtime + WIT 组件插件(燃料沙箱,三个样例,linkcard 对拍)
-- [ ] M4 Studio admin API
-- [ ] M5 主题层 + Go-template 迁移器 + 上色 + 搜索
+- [x] M4 Studio admin API(--admin:登录会话/cursor 分页/If-Match 409/媒体/预览/导入导出)
+- [x] M5 主题层 + Go-template 迁移器 + syntect 上色 + /search.json
 
 设计全案见 `docs/LLM_HANDOFF.md`(前史在 kite 仓库 `kiters` 分支)。
 
@@ -113,5 +113,5 @@ kiters build --site . --cpuprofile cpu.pb --flamegraph flame.svg --stats
 
 ```
 cargo build -p stamp-wasm -p skipper-wasm -p linkcard-lite --target wasm32-wasip2
-cargo test --workspace   # 24 项:整站/CLI/钩子×5/serve×8/插件×4/短代码×3
+cargo test --workspace   # 40+ 项:整站/CLI/钩子/serve/admin/主题/上色/迁移器/插件/短代码
 ```

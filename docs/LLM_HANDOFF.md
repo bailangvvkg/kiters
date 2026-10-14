@@ -50,7 +50,13 @@ halo 主站、kite(Go)备胎、kiters 只验收路线。
 - wasmtime 49 坑:Error 自有类型(非 anyhow re-export);`HasData`/`WasiView` trait;
   空 linker 无需 add_to_linker(但 wasip2 guest 要 `p2::add_to_linker_sync`)。
 
-## 4. M4 设计(admin API,未动工)
+## 4. M4 实录(admin API,已完成,a59fc42)
+
+- 新 crate `crates/kiters-admin`:`store.rs`(ContentStore:文件树即唯一真相,`content/<kind>/<slug>/index.md`,地址 `kind:slug`,revision = 文件字节 FNV-1a 64 位 hex;WriteError:Conflict/Exists/Missing/BadName/Io)、`session.rs`(HMAC-SHA256 cookie,密钥=sha256(password),常数时间比较,12h TTL)、`lib.rs` 路由。
+- 路由:POST /api/login、/api/logout、GET /api/session;GET/POST /api/contents(cursor 分页)、GET/PUT/DELETE /api/contents/{id}(PUT 必带 If-Match,缺=428,过期=409 附 current_revision;DELETE 同样 revision 门;400 当 kind 缺失/不匹配);POST /api/media(multipart)、GET /media/{*path}(immutable 缓存 + 路径穿越防护);POST /api/preview(no-store 即时渲染);GET /api/export(zip)、POST /api/import(zip,路径校验)。
+- serve 集成:`app_with_admin(served, Option<(PathBuf, String)>)`;CLI `serve --admin <密码>` 或 env KITERS_ADMIN_PASSWORD。写 content/ → watch 重建 → 快照换血 = 预览闭环。
+- 测试(admin_test.rs):登录门(无 cookie 401)、条目生命周期、并发写竞态(恰一 200 一 409)、预览含短代码、export→import 往返、删除 revision 门、媒体上传 + `..%2f` 穿越被拒、kind 必填 400。
+- 踩坑:br 原始串不能含非 ASCII(中文用 `r#\"…\"#.as_bytes()`);hmac 0.13 要 `use hmac::digest::KeyInit`;axum 0.8 multipart。
 
 kite admin API 契约(admin Studio React 直连):登录会话、内容 CRUD(cursor 分页、
 If-Match/revision 乐观锁、409 冲突)、媒体上传、预览(no-store 语义)、导入导出。
@@ -61,13 +67,14 @@ If-Match/revision 乐观锁、409 冲突)、媒体上传、预览(no-store 语�
 - kiters 侧:内容写回 content/ 目录 → watch 重建 → 快照换血,天然预览闭环。
 - 形态:axum 路由挂在 serve 上(`/api/*`),认证用签名 cookie 会话。
 
-## 5. M5 设计(主题/上色/搜索,未动工)
+## 5. M5 实录(主题/上色/迁移器/搜索,已完成,c079007)
 
-- minijinja 主题系统(layout.rs → 模板目录 + 内置主题回退)。
-- Go-template → minijinja 迁移器(文本变换,离线工具)。
-- syntect 上色(comrak render.plugins 或 on_html 阶段)。
-- tantivy + jieba 中文搜索(搜索索引 = 一次构建产物)。
-- 图片管线(sharp 等价:resize/webp,候选:image crate)。
+- **主题系统**(kiters-render/src/layout.rs):`Layout::theme(dir)` minijinja set_loader,主题模板先答、静态内置回退。主题可接管整页:`page.html`/`list.html`(上下文 site/title/items,每 item 含 title/url/date)、`alias.html`、`notfound.html`;sitemap/rss 恒用内置。`SiteBuilder::theme(name)` 读 `themes/<name>/`;CLI build/serve 均有 `--theme`。
+- **上色**(kiters-render/src/highlight.rs):syntect 5 `default-fancy`(纯 Rust regex,musl 安全),InspiredGitHub 亮色主题,扫描 `<pre><code class=\"language-x\">` 替换;无 language 或语言不识别→字节不动。CLI `--highlight`(build 与 serve 都有,ServeOptions.highlight 传进 watch 重建)。OnceLock 全进程共享一份色表。
+- **迁移器**(apps/kiters-cli/src/migrate.rs):`kiters migrate-template --from a.html --to b.html`。变量与字段路径(`.Site.Title`→`site.title`;整词大写缩写 URL/RSS 全词小写)、if/else/end(栈式配对)、range→for(循环变量=集合名单数,体内裸 `.` 与 `.Title` 自动带循环名)、注释、printf 取参数;未识别动作保留原样并在结尾点名。
+- **搜索索引**:构建产物 `/search.json`(plan Extra("search")),每篇站立条目 {title,url,date,text(500 字纯文)},serve 按 .json 后缀回 application/json。不上 tantivy/jieba(太重),检索交给主题端 JS。
+- 踩坑:minijinja 2.x set_loader 返回 `Result<Option<String>, Error>`;minijinja html 自动转义会把 `/` 转 `&#x2F;`(自家 URL 用 `|safe`);`"<pre><code"` 前缀里 `<pre>` 自带 `>`,找开标签结尾要从前缀之后搜;ThemeSet 取主题走 `.themes["…"]`;bash heredoc 写 Rust `'
+'` 会变字面换行(用 edit 工具)。
 
 ## 6. 验收基线(每里程碑)
 
@@ -82,9 +89,11 @@ crates/kiters-core     七钩子 + 类型(hooks.rs/site.rs)
 crates/kiters-parse    walk + front matter
 crates/kiters-render   comrak + minijinja layout + shortcode.rs
 crates/kiters-build    plan.rs(七种 TargetKind)+ report.rs(build_site)
-crates/kiters-serve    lib.rs(app/serve) snapshot.rs watch.rs
+crates/kiters-serve    lib.rs(app/serve, /api/* 经 app_with_admin 挂 admin) snapshot.rs watch.rs
+                      (ServeOptions{with_drafts,plugins,theme,highlight})
+crates/kiters-admin    store.rs(文件树真相+revision) session.rs(HMAC cookie) lib.rs(路由)
 crates/kiters-wasm     lib.rs(WasmPlugin 桥) wit/kiters.wit(协议)
 plugins/               stamp-wasm / skipper-wasm / linkcard-lite
-apps/kiters-cli        build + serve 子命令
-tests/fixture          5 内容项(1 草稿 1 定时)含别名/税目/长文
+apps/kiters-cli        build + serve + migrate-template 子命令(migrate.rs 含单测)
+tests/fixture          5 内容项(1 草稿 1 定时)含别名/税目/长文 + themes/demo/
 ```
