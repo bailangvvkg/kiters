@@ -22,5 +22,6 @@ kiters-render = { path = "crates/kiters-render" }
 kiters-build = { path = "crates/kiters-build" }
 kiters-serve = { path = "crates/kiters-serve" }
 kiters-wasm = { path = "crates/kiters-wasm" }
+kiters-admin = { path = "crates/kiters-admin" }
 tempfile = "3"
 pprof = { version = "0.13", default-features = false, features = ["prost-codec", "flamegraph", "cpp"] }

@@ -66,6 +66,10 @@ enum Command {
         /// A WebAssembly plugin, hooked into every rebuild.
         #[arg(long)]
         plugin: Vec<PathBuf>,
+        /// The studio's password: serving `/api` (login, contents,
+        /// media, preview, export) once said. No password, no admin.
+        #[arg(long)]
+        admin: Option<String>,
     },
 }
 
@@ -104,8 +108,9 @@ async fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Serve { site, addr, drafts, no_watch, plugin } => {
-            kiters_serve::serve(site, addr, !no_watch, drafts, plugin).await
+        Command::Serve { site, addr, drafts, no_watch, plugin, admin } => {
+            let password = admin.or_else(|| std::env::var("KITERS_ADMIN_PASSWORD").ok());
+            kiters_serve::serve(site, addr, !no_watch, drafts, plugin, password).await
         }
     }
 }

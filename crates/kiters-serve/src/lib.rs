@@ -30,7 +30,13 @@ pub struct Served {
 /// pre-rendered whole — every answer is the same answer, so every
 /// answer says where it came from: `x-kiters: snapshot`.
 pub fn app(served: Arc<Served>) -> Router {
-    Router::new()
+    app_with_admin(served, None)
+}
+
+/// The app with the admin riding: the studio's API, under `/api`, and
+/// media under `/media` — everything else still the snapshot's.
+pub fn app_with_admin(served: Arc<Served>, admin: Option<(std::path::PathBuf, String)>) -> Router {
+    let mut app = Router::new()
         .fallback(route)
         .with_state(served)
         .layer(
@@ -46,7 +52,11 @@ pub fn app(served: Arc<Served>) -> Router {
         // never be left holding what the site was. The snapshot is the
         // cache, and it empties the only way the site changes: by being
         // rebuilt.
-        .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-store")))
+        .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-store")));
+    if let Some((root, password)) = admin {
+        app = app.merge(kiters_admin::router(root, &password));
+    }
+    app
 }
 
 async fn route(State(served): State<Arc<Served>>, request: Request<Body>) -> Response<Body> {
@@ -99,6 +109,7 @@ pub async fn serve(
     with_watch: bool,
     with_drafts: bool,
     plugins: Vec<std::path::PathBuf>,
+    admin_password: Option<String>,
 ) -> anyhow::Result<()> {
     let hooks = load_plugins(&plugins)?;
     let mut builder = SiteBuilder::new(&root);
@@ -123,7 +134,7 @@ pub async fn serve(
         })?;
     }
 
-    let app = app(served);
+    let app = app_with_admin(served, admin_password.map(|password| (root.clone(), password)));
     axum::serve(listener, app).await?;
     Ok(())
 }
