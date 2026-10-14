@@ -9,6 +9,7 @@ anyhow.workspace = true
 chrono.workspace = true
 kiters-core.workspace = true
 wasmtime = "49"
+wasmtime-wasi = "49"
 
 [dev-dependencies]
 tempfile.workspace = true

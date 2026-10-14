@@ -14,17 +14,24 @@ use kiters_core::{
     BuildEvent, Content, DiscoverEvent, FrontMatterEvent, Hook, HtmlEvent, MarkdownEvent, PageEvent, Status,
     Target, TargetEvent, TargetKind,
 };
-use wasmtime::component::{bindgen, Component, Linker};
+use wasmtime::component::{bindgen, Component, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store};
+use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 bindgen!({ path: "wit", world: "plugin" });
 
-/// What the plugin's store carries: nothing, for now — the world
-/// imports nothing. Kept as a type so imports have a place to land.
-pub struct PluginState;
+/// What the plugin's store carries: WASI, and nothing in it — no
+/// files, no clock, no randomness. A plugin is a transform, not a
+/// process; the outside world is not its to touch.
+pub struct PluginState {
+    wasi: WasiCtx,
+    table: ResourceTable,
+}
 
-impl wasmtime::component::HasData for PluginState {
-    type Data<'a> = PluginState;
+impl WasiView for PluginState {
+    fn ctx(&mut self) -> WasiCtxView<'_> {
+        WasiCtxView { ctx: &mut self.wasi, table: &mut self.table }
+    }
 }
 
 /// How much fuel one call may burn: enough for any honest transform,
@@ -73,10 +80,14 @@ impl WasmPlugin {
     fn with_instance<T>(&self, call: impl FnOnce(&mut Store<PluginState>, &Plugin) -> Result<T, wasmtime::Error>) -> anyhow::Result<T> {
         let mut guard = self.instance.lock().expect("plugin instance poisoned");
         if guard.is_none() {
-            // The world imports nothing: an empty linker is the whole
-            // linking there is.
-            let linker: Linker<PluginState> = Linker::new(&self.engine);
-            let mut store = Store::new(&self.engine, PluginState);
+            // WASI answers what the guest's own runtime asks for, and
+            // nothing more; the world itself imports nothing.
+            let mut linker: Linker<PluginState> = Linker::new(&self.engine);
+            wasmtime_wasi::add_to_linker_sync(&mut linker)
+                .map_err(|err| anyhow::anyhow!("link wasi: {err}"))?;
+            let wasi = WasiCtx::builder().build();
+            let mut store =
+                Store::new(&self.engine, PluginState { wasi, table: ResourceTable::new() });
             let bindings = Plugin::instantiate(&mut store, &self.component, &linker)
                 .map_err(|err| anyhow::anyhow!("instantiate: {err}"))?;
             *guard = Some(Instance { store, bindings });
