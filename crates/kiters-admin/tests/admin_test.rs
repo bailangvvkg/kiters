@@ -34,7 +34,7 @@ async fn call(app: &Router, method: &str, uri: &str, headers: &[(&str, String)],
 }
 
 async fn login(app: &Router) -> Vec<(String, String)> {
-    let (status, _, _) = call(app, "POST", "/api/login", &[("content-type", "application/json".into())], Some(r#"{"password":"wrong"}"#.into().into_bytes())).await;
+    let (status, _, _) = call(app, "POST", "/api/login", &[("content-type", "application/json".into())], Some(r#"{"password":"wrong"}"#.as_bytes().to_vec())).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "a wrong password logged in");
 
     let response = app
@@ -287,7 +287,7 @@ async fn kind_is_not_optional_on_create() {
         "POST",
         "/api/contents",
         &json_headers(&authed),
-        Some(r#"{"slug":"nokind","title":"无类","body":"x"}"#.into().into_bytes()),
+        Some(r#"{"slug":"nokind","title":"无类","body":"x"}"#.as_bytes().to_vec()),
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
