@@ -88,6 +88,9 @@ impl WasmPlugin {
             let wasi = WasiCtx::builder().build();
             let mut store =
                 Store::new(&self.engine, PluginState { wasi, table: ResourceTable::new() });
+            // Instantiating burns fuel too — the meter runs from before
+            // the first breath.
+            store.set_fuel(CALL_FUEL)?;
             let bindings = Plugin::instantiate(&mut store, &self.component, &linker)
                 .map_err(|err| anyhow::anyhow!("instantiate: {err}"))?;
             *guard = Some(Instance { store, bindings });
