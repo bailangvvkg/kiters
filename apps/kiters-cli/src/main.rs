@@ -148,12 +148,13 @@ async fn main() -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Command::Serve { site, addr, drafts, no_watch, plugin, admin, theme } => {
+        Command::Serve { site, addr, drafts, no_watch, plugin, admin, theme, highlight } => {
             let password = admin.or_else(|| std::env::var("KITERS_ADMIN_PASSWORD").ok());
             let options = kiters_serve::ServeOptions {
                 with_drafts: drafts,
                 plugins: plugin,
                 theme,
+                highlight,
             };
             kiters_serve::serve(site, addr, !no_watch, options, password).await
         }

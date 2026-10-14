@@ -12,17 +12,18 @@ pub struct Migration {
     pub left_alone: Vec<String>,
 }
 
+/// What a block opens: an if closes with endif, a range with endfor,
+/// and a range's frame carries the loop's own name, for the body's
+/// bare `.` is the item.
+enum Frame {
+    If,
+    Range(String),
+}
+
 /// Migrates a Go template to minijinja.
 pub fn migrate(source: &str) -> (String, Migration) {
     let mut out = String::with_capacity(source.len());
     let mut report = Migration { converted: 0, left_alone: Vec::new() };
-    // `end` closes what is open, innermost first; a range's end is an
-    // endfor, an if's is an endif. A range's frame carries the loop's
-    // own name, for the body's bare `.` is the item.
-    enum Frame {
-        If,
-        Range(String),
-    }
     let mut stack: Vec<Frame> = Vec::new();
 
     let mut rest = source;

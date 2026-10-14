@@ -96,11 +96,13 @@ pub struct ServeOptions {
     pub with_drafts: bool,
     pub plugins: Vec<std::path::PathBuf>,
     pub theme: Option<String>,
+    /// Code blocks wear syntect color.
+    pub highlight: bool,
 }
 
 impl Default for ServeOptions {
     fn default() -> Self {
-        ServeOptions { with_drafts: false, plugins: Vec::new(), theme: None }
+        ServeOptions { with_drafts: false, plugins: Vec::new(), theme: None, highlight: false }
     }
 }
 
@@ -127,9 +129,10 @@ pub async fn serve(
     options: ServeOptions,
     admin_password: Option<String>,
 ) -> anyhow::Result<()> {
-    let ServeOptions { with_drafts, plugins, theme } = &options;
+    let ServeOptions { with_drafts, plugins, theme, highlight } = &options;
     let hooks = load_plugins(plugins)?;
     let mut builder = SiteBuilder::new(&root);
+    builder.markdown.highlight = *highlight;
     if let Some(name) = theme {
         builder = builder.theme(name);
     }

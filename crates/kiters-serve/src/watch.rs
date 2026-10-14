@@ -43,7 +43,7 @@ pub fn watch_and_rebuild(
 
     // One builder config, many builds: the plugins live in it, shared
     // whole from rebuild to rebuild.
-    let builder = Mutex::new(build_config(&root, &options.theme, &plugins));
+    let builder = Mutex::new(build_config(&root, &options.theme, options.highlight, &plugins));
 
     thread::spawn(move || {
         // The watcher lives as long as the thread: dropped here, it is
@@ -102,9 +102,10 @@ pub fn watch_and_rebuild(
 
 /// The builder every rebuild runs with: the site's root and its
 /// plugins, nothing else — drafts and output are each build's own.
-fn build_config(root: &PathBuf, theme: &Option<String>, plugins: &[Arc<WasmPlugin>]) -> SiteBuilder<'static> {
+fn build_config(root: &PathBuf, theme: &Option<String>, highlight: bool, plugins: &[Arc<WasmPlugin>]) -> SiteBuilder<'static> {
     let root: &'static std::path::Path = Box::leak(root.clone().into_boxed_path());
     let mut builder = SiteBuilder::new(root);
+    builder.markdown.highlight = highlight;
     if let Some(name) = theme {
         builder = builder.theme(name);
     }
