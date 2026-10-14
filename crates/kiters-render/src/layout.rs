@@ -38,12 +38,12 @@ impl Layout {
         let mut env = Environment::new();
         env.set_loader(move |name| {
             if let Some(found) = theme(name) {
-                return Some(Ok(found));
+                return Ok(Some(found));
             }
-            builtins()
+            Ok(BUILTINS
                 .iter()
                 .find(|(known, _)| *known == name)
-                .map(|(_, text)| Ok(text.to_string()))
+                .map(|(_, text)| (*text).to_string()))
         });
         Layout { env }
     }
@@ -141,13 +141,11 @@ impl Layout {
 
 /// The built-in templates: page, sitemap, rss — and a theme that does
 /// not speak one of them falls to these.
-fn builtins() -> &'static [(&'static str, &'static str)] {
-    &[
-        ("page.html", PAGE),
-        ("sitemap.xml", SITEMAP),
-        ("rss.xml", RSS),
-    ]
-}
+static BUILTINS: &[(&str, &str)] = &[
+    ("page.html", PAGE),
+    ("sitemap.xml", SITEMAP),
+    ("rss.xml", RSS),
+];
 
 /// The skeleton every built-in page wears. `body` arrives as HTML and is
 /// let through on purpose: it was made by the renderer, not the reader.
