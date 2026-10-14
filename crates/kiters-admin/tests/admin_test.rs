@@ -34,7 +34,7 @@ async fn call(app: &Router, method: &str, uri: &str, headers: &[(&str, String)],
 
 /// A wrong password refused, the right one answered with its cookie.
 async fn login(app: &Router) -> Authed {
-    let (status, _, _) = call(app, "POST", "/api/login", &[("content-type", "application/json".to_string())], Some(r#"{"password":"wrong"}"#.to_vec())).await;
+    let (status, _, _) = call(app, "POST", "/api/login", &[("content-type", "application/json".to_string())], Some(r#"{"password":"wrong"}"#.as_bytes().to_vec())).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "a wrong password logged in");
 
     let response = app
@@ -44,7 +44,7 @@ async fn login(app: &Router) -> Authed {
                 .method("POST")
                 .uri("/api/login")
                 .header("content-type", "application/json")
-                .body(Body::from(r#"{"password":"sekrit"}"#.to_vec()))
+                .body(Body::from(r#"{"password":"sekrit"}"#.as_bytes().to_vec()))
                 .unwrap(),
         )
         .await
@@ -147,10 +147,10 @@ async fn if_match_gates_the_second_writer() {
     let app_one = app.clone();
     let app_two = app.clone();
     let first = tokio::spawn(async move {
-        call(&app_one, "PUT", "/api/contents/posts:race", &one_headers, Some(r#"{"kind":"posts","title":"race","status":"draft","body":"乙"}"#.to_vec())).await
+        call(&app_one, "PUT", "/api/contents/posts:race", &one_headers, Some(r#"{"kind":"posts","title":"race","status":"draft","body":"乙"}"#.as_bytes().to_vec())).await
     });
     let second = tokio::spawn(async move {
-        call(&app_two, "PUT", "/api/contents/posts:race", &two_headers, Some(r#"{"kind":"posts","title":"race","status":"draft","body":"丙"}"#.to_vec())).await
+        call(&app_two, "PUT", "/api/contents/posts:race", &two_headers, Some(r#"{"kind":"posts","title":"race","status":"draft","body":"丙"}"#.as_bytes().to_vec())).await
     });
     let one = first.await.unwrap();
     let two = second.await.unwrap();
@@ -176,7 +176,7 @@ async fn preview_renders_and_forgets() {
         "POST",
         "/api/preview",
         &authed,
-        Some(r##"{"body":"# 标题\n\n{{< note 注意 >}}短代码也算{{< /note >}}"}"##.to_vec()),
+        Some(r##"{"body":"# 标题\n\n{{< note 注意 >}}短代码也算{{< /note >}}"}"##.as_bytes().to_vec()),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
@@ -275,7 +275,7 @@ async fn kind_is_not_optional_on_create() {
         "POST",
         "/api/contents",
         &authed,
-        Some(r#"{"slug":"nokind","title":"无类","body":"x"}"#.to_vec()),
+        Some(r#"{"slug":"nokind","title":"无类","body":"x"}"#.as_bytes().to_vec()),
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
