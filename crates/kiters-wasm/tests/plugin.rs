@@ -63,7 +63,65 @@ fn skipper_takes_its_targets_out() {
 }
 
 #[test]
-fn linkcard_lite_folds_a_bare_link_and_nothing_else() {
+fn linkcard_draws_a_card_from_a_code_block() {
+    let engine = engine();
+    let plugin = WasmPlugin::load(&engine, &guest("linkcard-lite")).unwrap();
+
+    // What a card's block says the card wears; what it leaves out the
+    // card asks for with data-need, for card.js to fill in.
+    let html = "<html><head><title>x</title></head><body><main><pre><code class=\"language-card\">url: https://kite.zipimg.cn/\n标题: 风筝\ndesc: a small engine\n</code></pre></main></body></html>";
+    let mut said = html.to_string();
+    let url = "/posts/test/";
+    plugin
+        .on_html(kiters_core::HtmlEvent { url: &url, html: &mut said })
+        .unwrap();
+
+    assert!(said.contains("<a class=\"kite-card\" data-size=\"regular\""), "no card: {said}");
+    assert!(said.contains("href=\"https://kite.zipimg.cn/\""), "the address lost: {said}");
+    assert!(said.contains("data-need=\"icon image\""), "needs said wrong: {said}");
+    assert!(said.contains(">风筝</strong>"), "the Chinese title lost: {said}");
+    assert!(said.contains("<span class=\"kc-desc\">a small engine</span>"), "desc lost: {said}");
+    assert!(said.contains("<span class=\"kc-host\">kite.zipimg.cn</span>"), "host lost: {said}");
+    assert!(!said.contains("language-card"), "the block stayed: {said}");
+    // The page dresses: one stylesheet at the head, one script at the
+    // body's end.
+    assert_eq!(said.matches(".kite-card {").count(), 1, "style said more than once");
+    assert_eq!(said.matches("Linkcard: fills in").count(), 1, "script said more than once");
+    assert!(said.find("<style>").unwrap() < said.find("</head>").unwrap(), "style not at head");
+    assert!(said.find("window.KiteLinkCard").unwrap() > said.find("</main>").unwrap(), "script not at body's end");
+}
+
+#[test]
+fn linkcard_draws_a_moved_halo_tag() {
+    let engine = engine();
+    let plugin = WasmPlugin::load(&engine, &guest("linkcard-lite")).unwrap();
+
+    // A post moved from Halo carries its cards as hyperlink-card
+    // tags; a renderer that scrubs unknown HTML leaves them escaped,
+    // and they still stand for cards. The inline one is the small
+    // card.
+    let url = "/posts/test/";
+    let html = "<html><body><p>&lt;hyperlink-card href=\"https://blog.zipimg.cn/archives/1\" custom-title=\"一篇文章\"&gt;&lt;a&gt;x&lt;/a&gt;&lt;/hyperlink-card&gt;</p></body></html>";
+    let mut said = html.to_string();
+    plugin
+        .on_html(kiters_core::HtmlEvent { url: &url, html: &mut said })
+        .unwrap();
+
+    assert!(said.contains("data-size=\"regular\""), "not the regular card: {said}");
+    assert!(said.contains("href=\"https://blog.zipimg.cn/archives/1\""), "address lost: {said}");
+    assert!(said.contains(">一篇文章</strong>"), "custom title lost: {said}");
+    assert!(!said.contains("hyperlink-card"), "the tag stayed: {said}");
+
+    let inline = "<html><body>&lt;hyperlink-inline-card href=\"https://example.com/\"&gt;x&lt;/hyperlink-inline-card&gt;</body></html>";
+    let mut said = inline.to_string();
+    plugin
+        .on_html(kiters_core::HtmlEvent { url: &url, html: &mut said })
+        .unwrap();
+    assert!(said.contains("data-size=\"small\""), "not the small card: {said}");
+}
+
+#[test]
+fn linkcard_folds_a_bare_link_and_nothing_else() {
     let engine = engine();
     let plugin = WasmPlugin::load(&engine, &guest("linkcard-lite")).unwrap();
 
@@ -71,20 +129,28 @@ fn linkcard_lite_folds_a_bare_link_and_nothing_else() {
     // both engines owe each other: a bare link alone in a paragraph
     // becomes one card; prose around links, and links inside prose,
     // stay as they are.
-    let prose = "<p>开头</p>\n<p><a href=\"https://kite.zipimg.cn/\">https://kite.zipimg.cn/</a></p>\n<p>看看<a href=\"https://example.com/x\">这个</a>链接</p>\n<p><a href=\"https://dmoe.cc/random.php\">https://dmoe.cc/random.php</a></p>";
-    let mut html = prose.to_string();
     let url = "/posts/test/";
+    let prose = "<html><body><p>开头</p>\n<p><a href=\"https://kite.zipimg.cn/\">https://kite.zipimg.cn/</a></p>\n<p>看看<a href=\"https://example.com/x\">这个</a>链接</p>\n<p><a href=\"https://dmoe.cc/random.php\">https://dmoe.cc/random.php</a></p></body></html>";
+    let mut html = prose.to_string();
     plugin
         .on_html(kiters_core::HtmlEvent { url: &url, html: &mut html })
         .unwrap();
 
     assert!(
-        html.contains("<div class=\"linkcard\"><a class=\"lc-card\" href=\"https://kite.zipimg.cn/\" target=\"_blank\" rel=\"noopener\"><span class=\"lc-host\">kite.zipimg.cn</span></a></div>"),
+        html.contains("<a class=\"kite-card\" data-size=\"regular\" href=\"https://kite.zipimg.cn/\""),
         "the bare link did not become a card: {html}"
     );
-    assert!(html.contains("<span class=\"lc-host\">dmoe.cc</span>"), "the second card missing: {html}");
+    assert!(html.contains("<span class=\"kc-host\">dmoe.cc</span>"), "the second card missing: {html}");
     assert!(html.contains("<p>开头</p>"), "prose around was touched: {html}");
     assert!(html.contains("看看<a href=\"https://example.com/x\">这个</a>链接"), "a link inside prose was folded: {html}");
+    assert!(html.contains("<strong class=\"kc-title\" data-fill=\"title\">kite.zipimg.cn</strong>"), "fill slot missing: {html}");
+    // The card a page does not have dresses nothing.
+    let plain = "<html><body><p>只是文字</p></body></html>";
+    let mut said = plain.to_string();
+    plugin
+        .on_html(kiters_core::HtmlEvent { url: &url, html: &mut said })
+        .unwrap();
+    assert_eq!(said, plain, "a page without cards was dressed anyway");
 }
 
 #[test]

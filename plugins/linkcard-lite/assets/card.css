@@ -1,0 +1,201 @@
+.kite-card {
+  --kc-bg: #f6f7f9;
+  --kc-fg: #1f2328;
+  --kc-muted: #656d76;
+  --kc-border: #e4e7eb;
+  --kc-radius: 12px;
+  display: flex;
+  align-items: stretch;
+  margin: 1em 0;
+  border: 1px solid var(--kc-border);
+  border-radius: var(--kc-radius);
+  background: var(--kc-bg);
+  color: var(--kc-fg);
+  text-decoration: none;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.kite-card:hover,
+.kite-card:focus-visible {
+  border-color: #b6bcc4;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  text-decoration: none;
+}
+
+.kite-card:active {
+  transform: none;
+}
+
+.kite-card * {
+  box-sizing: border-box;
+}
+
+.kc-media {
+  display: none; /* shown by the sizes that use it, once it has a picture */
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.kc-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.kc-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  padding: 12px 14px;
+}
+
+.kc-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* The letter that stands in when no icon is anywhere to be had. */
+.kc-icon-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--kc-accent, #5b8def);
+  background: color-mix(in srgb, var(--kc-accent, #5b8def) 14%, transparent);
+}
+
+.kite-card[data-size="grid"] .kc-icon-letter {
+  font-size: 17px;
+}
+
+.kite-card[data-size="small"] .kc-icon-letter {
+  font-size: 11px;
+}
+
+.kc-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.kc-title {
+  font-size: 0.95em;
+  font-weight: 600;
+  line-height: 1.4;
+  color: inherit;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.kc-desc {
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: var(--kc-muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.kc-host {
+  font-size: 0.78em;
+  color: var(--kc-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Regular: the card Halo draws for a link, text on the left and any picture
+   beside it on the right. */
+.kite-card[data-size="regular"] .kc-media {
+  display: block;
+  width: 132px;
+  order: 2;
+}
+
+/* Grid: a tall card with the picture over the text. */
+.kite-card[data-size="grid"] {
+  flex-direction: column;
+}
+
+.kite-card[data-size="grid"] .kc-media {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.kite-card[data-size="grid"] .kc-title {
+  -webkit-line-clamp: 2;
+}
+
+.kite-card[data-size="grid"] .kc-desc {
+  -webkit-line-clamp: 3;
+}
+
+.kite-card[data-size="grid"] .kc-icon {
+  width: 36px;
+  height: 36px;
+}
+
+/* Small: one line, an icon, a title and the host, no description. */
+.kite-card[data-size="small"] {
+  border-radius: 8px;
+}
+
+.kite-card[data-size="small"] .kc-body {
+  padding: 6px 10px;
+  gap: 8px;
+  align-items: center;
+}
+
+.kite-card[data-size="small"] .kc-icon {
+  width: 20px;
+  height: 20px;
+  margin-top: 0;
+}
+
+.kite-card[data-size="small"] .kc-text {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.kite-card[data-size="small"] .kc-desc {
+  display: none;
+}
+
+/* What a card is still waiting for shows as little as possible; the
+   attribute comes off once card.js fills the picture in. */
+.kite-card[data-size="regular"] .kc-media[data-fill],
+.kite-card[data-size="grid"] .kc-media[data-fill] {
+  display: none;
+}
+
+/* Dark, by what the reader's machine says or the theme chose. */
+@media (prefers-color-scheme: dark) {
+  .kite-card {
+    --kc-bg: #1c1f26;
+    --kc-fg: #e6e8eb;
+    --kc-muted: #9aa3ad;
+    --kc-border: #31353d;
+  }
+}
+
+[data-theme="dark"] .kite-card,
+.dark .kite-card {
+  --kc-bg: #1c1f26;
+  --kc-fg: #e6e8eb;
+  --kc-muted: #9aa3ad;
+  --kc-border: #31353d;
+}
