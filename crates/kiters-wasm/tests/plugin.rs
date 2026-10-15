@@ -195,6 +195,29 @@ fn linkcard_folds_a_bare_link_and_nothing_else() {
 }
 
 #[test]
+fn a_kept_alias_keeps_its_target() {
+    let engine = engine();
+    // A plugin that keeps a target keeps it whole: the alias's own
+    // address rides the wire beside the kind's name, and comes back.
+    let plugin = WasmPlugin::load(&engine, &guest("linkcard-lite")).unwrap();
+    let mut target = kiters_core::Target {
+        url: "/posts/old/".to_string(),
+        out: std::path::PathBuf::from("posts/old/index.html"),
+        kind: kiters_core::TargetKind::Alias { to: "/posts/new-home/".to_string() },
+        content: None,
+    };
+    let mut skip = false;
+    plugin
+        .on_target(kiters_core::TargetEvent { target: &mut target, skip: &mut skip })
+        .unwrap();
+    assert!(!skip, "a keep skipped");
+    match target.kind {
+        kiters_core::TargetKind::Alias { to } => assert_eq!(to, "/posts/new-home/", "the alias lost where it points"),
+        other => panic!("the kind changed shape: {other:?}"),
+    }
+}
+
+#[test]
 fn a_broken_plugin_fails_the_build_by_name_not_by_hanging() {
     // Not a component at all: loading it fails, and the failure says
     // the file.

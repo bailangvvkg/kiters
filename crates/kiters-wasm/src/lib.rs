@@ -138,7 +138,7 @@ impl Hook for WasmPlugin {
             Outcome::Keep(kept) => {
                 event.target.url = kept.url;
                 event.target.out = PathBuf::from(kept.out);
-                if let Some(kind) = kind_from(&kept.kind) {
+                if let Some(kind) = kind_from(&kept.kind, kept.alias_to.as_deref(), kept.term.as_deref()) {
                     event.target.kind = kind;
                 }
             }
@@ -223,10 +223,17 @@ fn write_back(content: &mut Content, item: &Item) {
 }
 
 fn planned_of(target: &Target) -> Planned {
+    let payload = match &target.kind {
+        TargetKind::Alias { to } => (Some(to.clone()), None),
+        TargetKind::Term { term, .. } if term.contains('/') => (None, Some(term.clone())),
+        _ => (None, None),
+    };
     Planned {
         url: target.url.clone(),
         out: target.out.display().to_string(),
         kind: kind_to(&target.kind),
+        alias_to: payload.0,
+        term: payload.1,
     }
 }
 
@@ -242,18 +249,21 @@ fn kind_to(kind: &TargetKind) -> String {
     }
 }
 
-fn kind_from(kind: &str) -> Option<TargetKind> {
+fn kind_from(kind: &str, alias_to: Option<&str>, term_name: Option<&str>) -> Option<TargetKind> {
     match kind {
         "item" => Some(TargetKind::Item),
         "home" => Some(TargetKind::Home),
         "not-found" => Some(TargetKind::NotFound),
-        "alias" => Some(TargetKind::Alias { to: String::new() }),
+        // The alias's own address rides its own field, for a target
+        // address holds characters a kind's name was never meant to.
+        "alias" => Some(TargetKind::Alias { to: alias_to.unwrap_or_default().to_string() }),
         _ => {
             if let Some(name) = kind.strip_prefix("taxonomy:") {
                 Some(TargetKind::Taxonomy(name.to_string()))
             } else if let Some(rest) = kind.strip_prefix("term:") {
                 let (taxonomy, term) = rest.split_once('/')?;
-                Some(TargetKind::Term { taxonomy: taxonomy.to_string(), term: term.to_string() })
+                let term = term_name.map(str::to_string).unwrap_or_else(|| term.to_string());
+                Some(TargetKind::Term { taxonomy: taxonomy.to_string(), term })
             } else {
                 // `extra` targets are the site's own (the sitemap, the
                 // feed), fixed names, not a plugin's to invent.

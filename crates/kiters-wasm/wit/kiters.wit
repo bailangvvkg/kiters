@@ -39,6 +39,10 @@ interface types {
         /// `item`, `home`, `not-found`, `alias`, `taxonomy:<name>`,
         /// `term:<name>/<term>`, or `extra:<name>`.
         kind: string,
+        /// The payload the kind's name cannot always carry: an alias's
+        /// target address, and a term's own name when it holds a slash.
+        alias-to: option<string>,
+        term: option<string>,
     }
 
     /// What a plugin says about a target: take it out, or keep it —
