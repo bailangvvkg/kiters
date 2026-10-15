@@ -24,6 +24,16 @@ jobs:
       - run: cargo build -p stamp-wasm -p skipper-wasm -p linkcard-lite --target wasm32-wasip2
       - run: cargo test --workspace
       - run: cargo build --release
+      # The guests, kept where a hand can reach them: an acceptance run
+      # on a server loads them straight from here.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guest-plugins
+          path: |
+            target/wasm32-wasip2/debug/stamp_wasm.wasm
+            target/wasm32-wasip2/debug/skipper_wasm.wasm
+            target/wasm32-wasip2/debug/linkcard_lite.wasm
+          if-no-files-found: error
 
   image:
     needs: test
