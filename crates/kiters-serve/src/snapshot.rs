@@ -102,7 +102,7 @@ fn read_assets(dir: &Path) -> HashMap<String, Arc<Vec<u8>>> {
                 stack.push(path);
             } else if let Ok(bytes) = std::fs::read(&path) {
                 if let Ok(under) = path.strip_prefix(&rooted) {
-                    let address = format!("/{}", under.to_string_lossy().replace('\', "/"));
+                    let address = format!("/{}", under.to_string_lossy().replace('\\', "/"));
                     assets.insert(address, Arc::new(bytes));
                 }
             }
