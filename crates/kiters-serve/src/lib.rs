@@ -52,7 +52,7 @@ pub fn app_with_admin(served: Arc<Served>, admin: Option<(std::path::PathBuf, St
         // never be left holding what the site was. The snapshot is the
         // cache, and it empties the only way the site changes: by being
         // rebuilt.
-        .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-store")));
+        .layer(SetResponseHeaderLayer::if_not_present(header::CACHE_CONTROL, HeaderValue::from_static("no-store")));
     if let Some((root, password)) = admin {
         app = app.merge(kiters_admin::router(root, &password));
     }
@@ -90,6 +90,11 @@ async fn route(State(served): State<Arc<Served>>, request: Request<Body>) -> Res
     response
         .headers_mut()
         .insert("x-kiters", HeaderValue::from_static("snapshot"));
+    // A page is said once and may be unsaid the next second; no reader
+    // keeps one.
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     if path.ends_with(".json") {
         response
             .headers_mut()
