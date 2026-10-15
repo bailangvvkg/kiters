@@ -11,6 +11,7 @@ kiters-parse.workspace = true
 kiters-wasm.workspace = true
 kiters-admin.workspace = true
 anyhow.workspace = true
+bytes.workspace = true
 chrono.workspace = true
 arc-swap = "1"
 notify = "8"
