@@ -42,8 +42,23 @@ pub fn router(root: impl Into<std::path::PathBuf>, password: &str) -> Router {
         .route("/api/export", get(export))
         .route("/api/import", post(import))
         .route("/media/{*path}", get(media_file))
+        .route("/admin", get(studio))
         .with_state(state)
 }
+
+/// The studio's one page: a login, a list, an editor, a preview. It is
+/// the API wearing a face, nothing more — every action it offers is one
+/// the API already speaks.
+async fn studio() -> Response {
+    (
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        [(header::CACHE_CONTROL, "no-store")],
+        STUDIO_HTML,
+    )
+        .into_response()
+}
+
+const STUDIO_HTML: &str = include_str!("studio.html");
 
 /// A request that carried a standing session. Everything past login
 /// requires one; none of it is anyone's without it.

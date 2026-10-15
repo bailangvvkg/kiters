@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kiters studio</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.65 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+         background: #14171c; color: #dfe3e8; }
+  a { color: #8ab4f8; text-decoration: none; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 18px;
+           background: #1b1f26; border-bottom: 1px solid #2a2f38; position: sticky; top: 0; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header .who { color: #9aa3ad; font-size: 13px; }
+  header button { margin-left: auto; }
+  main { max-width: 900px; margin: 0 auto; padding: 18px; }
+  .card { background: #1b1f26; border: 1px solid #2a2f38; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  input, select, textarea, button {
+    font: inherit; color: inherit; background: #14171c; border: 1px solid #31363f;
+    border-radius: 7px; padding: 7px 10px; }
+  textarea { width: 100%; min-height: 320px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; resize: vertical; }
+  button { cursor: pointer; }
+  button:hover { border-color: #8ab4f8; }
+  button.primary { background: #2b4c7e; border-color: #2b4c7e; }
+  button.danger { color: #f28b82; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .row label { color: #9aa3ad; font-size: 13px; }
+  .grow { flex: 1; }
+  ul.items { list-style: none; margin: 0; padding: 0; }
+  ul.items li { display: flex; gap: 10px; align-items: baseline; padding: 8px 6px;
+                border-bottom: 1px solid #232830; cursor: pointer; }
+  ul.items li:hover { background: #20252e; }
+  ul.items .id { color: #9aa3ad; font-size: 12.5px; min-width: 170px; }
+  ul.items .status { font-size: 12px; padding: 1px 8px; border-radius: 99px; border: 1px solid #31363f; }
+  .status.published { color: #81c995; border-color: #2f5d3f; }
+  .status.draft { color: #fdd663; border-color: #6b5a1f; }
+  .status.scheduled { color: #8ab4f8; }
+  .msg { margin: 10px 0; padding: 8px 12px; border-radius: 7px; font-size: 13.5px; display: none; }
+  .msg.ok { display: block; background: #1d3326; color: #81c995; }
+  .msg.err { display: block; background: #3a2226; color: #f28b82; }
+  .hide { display: none !important; }
+  #preview { width: 100%; height: 60vh; border: 1px solid #31363f; border-radius: 8px; background: #fff; }
+  h2 { font-size: 14px; color: #9aa3ad; font-weight: 600; margin: 0 0 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>kiters studio</h1>
+  <span class="who" id="who"></span>
+  <button id="logout" class="hide">登出</button>
+</header>
+<main>
+
+<section id="login-view" class="card">
+  <h2>一个密码,进后台</h2>
+  <form id="login-form" class="row">
+    <input type="password" id="password" placeholder="密码" autofocus autocomplete="current-password">
+    <button class="primary" type="submit">进入</button>
+  </form>
+</section>
+
+<section id="list-view" class="hide">
+  <div class="card">
+    <div class="row">
+      <h2 class="grow">内容(文件树即真相)</h2>
+      <button id="new-btn">新建</button>
+      <button id="refresh-btn">刷新</button>
+    </div>
+    <div class="msg" id="msg"></div>
+    <ul class="items" id="items"></ul>
+  </div>
+
+  <div class="card hide" id="editor">
+    <h2 id="editor-title">编辑</h2>
+    <div class="row" style="margin-bottom:10px">
+      <label>标题</label><input id="f-title" class="grow">
+      <label>状态</label>
+      <select id="f-status">
+        <option value="draft">draft</option>
+        <option value="published">published</option>
+        <option value="scheduled">scheduled</option>
+      </select>
+      <label>日期</label><input id="f-date" placeholder="2026-01-01" style="width:130px">
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <label>标签</label><input id="f-tags" class="grow" placeholder="逗号隔开:随笔, 开工">
+      <label>封面</label><input id="f-cover" class="grow" placeholder="cover 图片地址(可空)">
+    </div>
+    <textarea id="f-body" placeholder="正文,markdown"></textarea>
+    <div class="row" style="margin-top:10px">
+      <span class="grow" id="rev" style="color:#9aa3ad;font-size:12.5px"></span>
+      <button id="preview-btn">预览</button>
+      <button id="delete-btn" class="danger">删除</button>
+      <button id="save-btn" class="primary">保存</button>
+    </div>
+    <p style="color:#9aa3ad;font-size:12.5px;margin:10px 0 0">
+      保存即写盘;watch 立刻重建快照,前台刷新可见。
+    </p>
+  </div>
+
+  <div class="card hide" id="preview-card">
+    <div class="row"><h2 class="grow">预览(仅当刻,不落盘)</h2><button id="close-preview">收起</button></div>
+    <iframe id="preview"></iframe>
+  </div>
+</section>
+
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let currentId = null, currentRev = null;
+
+function say(ok, text) {
+  const m = $("msg");
+  m.className = "msg " + (ok ? "ok" : "err");
+  m.textContent = text;
+  clearTimeout(say._t);
+  say._t = setTimeout(() => { m.className = "msg"; }, 4000);
+}
+
+async function api(path, opts = {}) {
+  opts.headers = Object.assign({ "content-type": "application/json" }, opts.headers);
+  const resp = await fetch(path, opts);
+  if (resp.status === 401) { showLogin(); throw new Error("登录过期"); }
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const err = new Error(data.error || resp.status);
+    err.status = resp.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+function showLogin() {
+  $("login-view").classList.remove("hide");
+  $("list-view").classList.add("hide");
+  $("logout").classList.add("hide");
+  $("who").textContent = "";
+}
+
+async function enter() {
+  $("login-view").classList.add("hide");
+  $("list-view").classList.remove("hide");
+  $("logout").classList.remove("hide");
+  $("who").textContent = "admin";
+  await refresh();
+}
+
+$("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await api("/api/login", { method: "POST", body: JSON.stringify({ password: $("password").value }) });
+    $("password").value = "";
+    await enter();
+  } catch (err) { say(false, "密码不对"); }
+});
+
+$("logout").addEventListener("click", async () => {
+  await api("/api/logout", { method: "POST" }).catch(() => {});
+  showLogin();
+});
+
+async function refresh() {
+  try {
+    const data = await api("/api/contents?limit=100");
+    const ul = $("items");
+    ul.innerHTML = "";
+    for (const it of data.items) {
+      const li = document.createElement("li");
+      const st = it.status || "draft";
+      li.innerHTML = `<span class="id">${it.id}</span>` +
+        `<span class="status ${st}">${st}</span>` +
+        `<span class="grow"></span><span>${it.title || it.slug}</span>` +
+        (it.date ? `<span style="color:#9aa3ad;font-size:12.5px">${String(it.date).slice(0, 10)}</span>` : "");
+      li.addEventListener("click", () => openItem(it.id));
+      ul.appendChild(li);
+    }
+    if (!data.items.length) ul.innerHTML = `<li style="cursor:default;color:#9aa3ad">还没有内容,新建一篇。</li>`;
+  } catch (err) { say(false, err.message); }
+}
+$("refresh-btn").addEventListener("click", refresh);
+
+async function openItem(id) {
+  try {
+    const item = await api("/api/contents/" + encodeURIComponent(id));
+    currentId = id;
+    currentRev = item.revision;
+    $("editor-title").textContent = "编辑 " + id;
+    $("f-title").value = item.front.title || "";
+    $("f-status").value = item.front.status || "draft";
+    $("f-date").value = item.front.date ? String(item.front.date).slice(0, 10) : "";
+    $("f-tags").value = (item.front.tags || []).join(", ");
+    $("f-cover").value = item.front.cover || "";
+    $("f-body").value = item.body || "";
+    $("rev").textContent = "revision " + String(item.revision).slice(0, 12);
+    $("editor").classList.remove("hide");
+    $("editor").scrollIntoView({ behavior: "smooth" });
+  } catch (err) { say(false, err.message); }
+}
+
+function collect() {
+  return {
+    kind: currentId ? currentId.split(":")[0] : "posts",
+    title: $("f-title").value.trim(),
+    status: $("f-status").value,
+    date: $("f-date").value.trim() || null,
+    cover: $("f-cover").value.trim() || null,
+    tags: $("f-tags").value.split(/[,，]/).map(t => t.trim()).filter(Boolean),
+    body: $("f-body").value,
+  };
+}
+
+$("save-btn").addEventListener("click", async () => {
+  if (!currentId) return;
+  try {
+    const data = await api("/api/contents/" + encodeURIComponent(currentId), {
+      method: "PUT",
+      headers: { "if-match": currentRev },
+      body: JSON.stringify(collect()),
+    });
+    currentRev = data.revision;
+    $("rev").textContent = "revision " + String(data.revision).slice(0, 12);
+    say(true, "保存了;前台已重建,刷新站点可见");
+    refresh();
+  } catch (err) {
+    if (err.status === 409) {
+      say(false, "被别人改过了(" + (err.data && err.data.current_revision || "").slice(0, 8) + "…)——关掉编辑重新打开,拿新的再改");
+    } else if (err.status === 428) {
+      say(false, "缺 If-Match(内部错误)");
+    } else {
+      say(false, err.message);
+    }
+  }
+});
+
+$("delete-btn").addEventListener("click", async () => {
+  if (!currentId) return;
+  if (!confirm("删掉 " + currentId + "?文件从树上拿走,不可撤销。")) return;
+  try {
+    await api("/api/contents/" + encodeURIComponent(currentId), {
+      method: "DELETE",
+      headers: { "if-match": currentRev },
+    });
+    currentId = null;
+    $("editor").classList.add("hide");
+    say(true, "删掉了");
+    refresh();
+  } catch (err) { say(false, err.status === 409 ? "又被改了,重开再删" : err.message); }
+});
+
+$("new-btn").addEventListener("click", async () => {
+  const kind = prompt("kind(目录名,如 posts)", "posts");
+  if (!kind) return;
+  const slug = prompt("slug(目录名,小写字母数字和 -)", "");
+  if (!slug) return;
+  try {
+    const data = await api("/api/contents", {
+      method: "POST",
+      body: JSON.stringify({ kind, slug, title: "未命名", status: "draft", tags: [], body: "新的一篇。\n" }),
+    });
+    say(true, "建好了:" + data.id);
+    await refresh();
+    openItem(data.id);
+  } catch (err) { say(false, err.message); }
+});
+
+$("preview-btn").addEventListener("click", async () => {
+  try {
+    const data = await api("/api/preview", { method: "POST", body: JSON.stringify({ body: $("f-body").value }) });
+    $("preview").srcdoc = `<!doctype html><meta charset="utf-8"><style>body{font:15px/1.7 system-ui,"Microsoft YaHei";margin:24px;color:#222}pre{background:#f4f4f4;padding:10px;border-radius:6px;overflow:auto}img{max-width:100%}blockquote{border-left:3px solid #bbb;margin:0;padding:2px 14px;color:#555}</style>` + data.html;
+    $("preview-card").classList.remove("hide");
+  } catch (err) { say(false, err.message); }
+});
+$("close-preview").addEventListener("click", () => $("preview-card").classList.add("hide"));
+
+// Is a session already standing? The page asks once, quietly.
+api("/api/session").then(enter).catch(() => {});
+</script>
+</body>
+</html>
