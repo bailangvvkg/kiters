@@ -64,8 +64,6 @@ fn builds_the_whole_site_with_drafts_and_scheduled_left_out() {
     // Nowhere the draft or the scheduled item.
     let sitemap = std::fs::read_to_string(out.path().join("sitemap.xml")).unwrap();
     assert!(!sitemap.contains("miyue") && !sitemap.contains("scheduled"), "sitemap leaks");
-    let hat = std::fs::read_to_string(out.path().join("demo/hat.css")).unwrap();
-    assert!(hat.contains("teal"), "the theme's static did not land: {hat}");
     let search = std::fs::read_to_string(out.path().join("search.json")).unwrap();
     assert!(search.contains("/posts/hello-world/"), "search lost the post");
     assert!(!search.contains("miyue"), "search leaks the draft");
@@ -98,6 +96,9 @@ fn a_theme_wears_the_site_its_own_way() {
     let nf = std::fs::read_to_string(out.path().join("404.html")).unwrap();
     assert!(nf.contains("demo-notfound"), "the theme's 404 is not worn");
 
+    // The theme's own static lands with the pages.
+    let hat = std::fs::read_to_string(out.path().join("demo/hat.css")).unwrap();
+    assert!(hat.contains("teal"), "the theme's static did not land: {hat}");
     // What the theme does not say, the built-ins answer: the sitemap
     // still says the whole site.
     let sitemap = std::fs::read_to_string(out.path().join("sitemap.xml")).unwrap();
