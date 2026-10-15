@@ -232,6 +232,10 @@ pub struct SiteMeta {
     /// the theme's own knobs, read whole and handed over untouched.
     #[serde(default)]
     pub theme_settings: serde_yaml::Mapping,
+    /// What the site's yaml says under `markdown.unsafeHTML`: raw HTML
+    /// in the bodies stands as written instead of being folded away.
+    #[serde(default)]
+    pub markdown_unsafe: bool,
 }
 
 /// A plan is every target of one build, in the order they will be

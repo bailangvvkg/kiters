@@ -1,5 +1,6 @@
 //! A build of the fixture site, checked end to end.
 
+use std::fs;
 use std::path::Path;
 
 use kiters_build::{build_site, SiteBuilder};
@@ -74,6 +75,33 @@ fn builds_the_whole_site_with_drafts_and_scheduled_left_out() {
     // The 404 answers with a page, not a bare status.
     let nf = std::fs::read_to_string(out.path().join("404.html")).unwrap();
     assert!(nf.contains("页面不存在"));
+}
+
+#[test]
+fn the_yamls_unsafe_html_stands_without_a_flag() {
+    let site = tempfile::tempdir().unwrap();
+    fs::write(site.path().join("kite.yaml"), "site:
+  title: Raw
+markdown:
+  unsafeHTML: true
+").unwrap();
+    fs::create_dir_all(site.path().join("content/posts/raw")).unwrap();
+    fs::write(
+        site.path().join("content/posts/raw/index.md"),
+        "---
+title: Raw
+status: published
+---
+
+<span style=\"color: teal\">teal words</span>
+",
+    )
+    .unwrap();
+    let out = tempfile::tempdir().unwrap();
+    let builder = SiteBuilder::new(site.path()).out(out.path());
+    let (_meta, _plan, _pages, _report) = build_site(&builder).unwrap();
+    let page = fs::read_to_string(out.path().join("posts/raw/index.html")).unwrap();
+    assert!(page.contains("color: teal"), "the yaml's unsafe HTML was folded away: {page}");
 }
 
 #[test]

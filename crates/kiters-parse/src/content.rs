@@ -22,6 +22,14 @@ pub fn read_config(root: &Path) -> anyhow::Result<SiteMeta> {
         let raw: serde_yaml::Value = serde_yaml::from_str(&text)?;
         let site = raw.get("site").cloned().unwrap_or_default();
         let mut meta: SiteMeta = serde_yaml::from_value(site)?;
+        if let Some(markdown) = raw.get("markdown") {
+            for key in ["unsafeHTML", "unsafe_html", "unsafe"] {
+                if let Some(said) = markdown.get(key).and_then(|v| v.as_bool()) {
+                    meta.markdown_unsafe = said;
+                    break;
+                }
+            }
+        }
         if let Some(settings) = raw.get("theme").and_then(|t| t.get("settings")).cloned() {
             if let Ok(said) = serde_yaml::from_value::<serde_yaml::Mapping>(settings) {
                 meta.theme_settings = said;

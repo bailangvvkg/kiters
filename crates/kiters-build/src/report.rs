@@ -35,14 +35,20 @@ impl<'a> SiteBuilder<'a> {
     /// layout — the ordinary build of an ordinary site. Nothing is
     /// written until [`SiteBuilder::out`] says where.
     pub fn new(root: &'a Path) -> Self {
-        SiteBuilder {
+        let mut builder = SiteBuilder {
             root,
             hooks: Hooks::new(),
             layout: Layout::builtin(),
             markdown: RenderOptions::default(),
             plan: PlanOptions { with_drafts: false, with_not_found: true, with_taxonomies: true },
             out: None,
+        };
+        // What the site's yaml says about raw HTML is the site's own
+        // call; a build that says --unsafe only ever widens it.
+        if let Ok(meta) = kiters_parse::read_config(root) {
+            builder.markdown.unsafe_html |= meta.markdown_unsafe;
         }
+        builder
     }
 
     /// Writes the finished site under `out` (a build's default is
