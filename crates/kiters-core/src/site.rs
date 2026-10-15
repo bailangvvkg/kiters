@@ -124,6 +124,7 @@ fn de_date<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<DateTime<Utc
         return day
             .and_hms_opt(0, 0, 0)
             .map(|midnight| DateTime::from_naive_utc_and_offset(midnight, chrono::Utc))
+            .map(Some)
             .ok_or_else(|| serde::de::Error::custom("a date with no midnight"));
     }
     Err(serde::de::Error::custom(format!("date, not as one is read: {raw}")))
