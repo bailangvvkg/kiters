@@ -76,7 +76,7 @@ crates/
   kiters-build    计划与预渲染编排,落盘
   kiters-serve    axum 快照服务 + watch + 压缩
   kiters-wasm     wasmtime 49 宿主桥 + WIT 协议
-plugins/          样例插件(stamp/skipper/linkcard-lite)
+plugins/          样例插件(stamp/skipper/linkcard:卡片对拍 kite/halo)
 apps/
   kiters-cli      kiters build / serve
 tests/fixture/    中文示例站(3 发布 + 1 草稿 + 1 定时,别名/税目/长文)
