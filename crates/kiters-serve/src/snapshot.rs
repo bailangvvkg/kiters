@@ -90,7 +90,7 @@ impl Snapshot {
 
 /// A theme's static directory, read whole: every file under its own
 /// address, `/almanac/almanac.css` and all its neighbours.
-fn read_assets(dir: &Path) -> HashMap<String, Arc<Vec<u8>>> {
+fn read_assets(root: &Path) -> HashMap<String, Arc<Vec<u8>>> {
     // What sits under static/ answers at its own address, from the root.
     let mut assets = HashMap::new();
     let mut stack = vec![dir.to_path_buf()];
@@ -101,7 +101,7 @@ fn read_assets(dir: &Path) -> HashMap<String, Arc<Vec<u8>>> {
             if path.is_dir() {
                 stack.push(path);
             } else if let Ok(bytes) = std::fs::read(&path) {
-                if let Ok(under) = path.strip_prefix(dir) {
+                if let Ok(under) = path.strip_prefix(root) {
                     let address = format!("/{}", under.to_string_lossy().replace('\\', "/"));
                     assets.insert(address, Arc::new(bytes));
                 }
