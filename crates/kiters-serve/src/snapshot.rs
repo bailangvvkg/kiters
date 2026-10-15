@@ -93,7 +93,7 @@ impl Snapshot {
 fn read_assets(root: &Path) -> HashMap<String, Arc<Vec<u8>>> {
     // What sits under static/ answers at its own address, from the root.
     let mut assets = HashMap::new();
-    let mut stack = vec![dir.to_path_buf()];
+    let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
         let Ok(read) = std::fs::read_dir(&dir) else { continue };
         for entry in read.flatten() {
