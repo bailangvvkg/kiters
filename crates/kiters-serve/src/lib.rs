@@ -66,7 +66,7 @@ async fn route(State(served): State<Arc<Served>>, request: Request<Body>) -> Res
     let snapshot = served.snapshot.load_full();
     let path = request.uri().path().to_string();
     if let Some(asset) = snapshot.asset(&path) {
-        let mut response = Response::new(Body::from((*asset).clone()));
+        let mut response = Response::new(Body::from(asset));
         response
             .headers_mut()
             .insert("x-kiters", HeaderValue::from_static("snapshot"));
@@ -82,8 +82,8 @@ async fn route(State(served): State<Arc<Served>>, request: Request<Body>) -> Res
     }
     let page = snapshot.get(&path);
     let (status, body) = match page {
-        Some(page) => (StatusCode::OK, page.html.clone()),
-        None => (StatusCode::NOT_FOUND, snapshot.not_found().html.clone()),
+        Some((status, body)) => (StatusCode::from_u16(status).unwrap_or(StatusCode::OK), body),
+        None => (StatusCode::NOT_FOUND, snapshot.not_found().1),
     };
     let mut response = Response::new(Body::from(body));
     *response.status_mut() = status;

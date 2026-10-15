@@ -2,20 +2,20 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
 
 use kiters_build::{build_site, SiteBuilder};
-use kiters_core::Page;
 
 /// Every page of one build, by address. Built whole before anyone reads
 /// it, read whole by everyone after — the only cache whose emptiness is
 /// the site changing.
 pub struct Snapshot {
     site: kiters_core::SiteMeta,
-    pages: HashMap<String, Arc<Page>>,
+    /// Each page as counted bytes: handing one to a reader adds a
+    /// count, not a copy.
+    pages: HashMap<String, (u16, bytes::Bytes)>,
     /// The theme's static files, by address, held whole with the pages
     /// they dress.
-    assets: HashMap<String, Arc<Vec<u8>>>,
+    assets: HashMap<String, bytes::Bytes>,
     /// The instants a scheduled item comes due; a watcher waits out the
     /// nearest and rebuilds when it passes.
     due: Vec<chrono::DateTime<chrono::Utc>>,
@@ -42,11 +42,14 @@ impl Snapshot {
         let assets = builder
             .layout
             .static_dir()
-            .map(|dir| read_assets(dir))
+            .map(read_assets)
             .unwrap_or_default();
         Ok(Snapshot {
             site,
-            pages: pages.into_iter().map(|page| (page.url.clone(), Arc::new(page))).collect(),
+            pages: pages
+                .into_iter()
+                .map(|page| (page.url, (page.status, bytes::Bytes::from(page.html))))
+                .collect(),
             assets,
             due,
             built_in: report.took,
@@ -54,16 +57,13 @@ impl Snapshot {
     }
 
     /// The page an address answers with.
-    pub fn get(&self, path: &str) -> Option<Arc<Page>> {
+    pub fn get(&self, path: &str) -> Option<(u16, bytes::Bytes)> {
         self.pages.get(path).cloned()
     }
 
     /// The not-found page, rendered like any other.
-    pub fn not_found(&self) -> Arc<Page> {
-        self.pages
-            .get("/404.html")
-            .cloned()
-            .unwrap_or_else(|| Arc::new(Page { url: "/404.html".into(), status: 404, html: "not found".into() }))
+    pub fn not_found(&self) -> (u16, bytes::Bytes) {
+        self.pages.get("/404.html").cloned().unwrap_or((404, bytes::Bytes::from_static(b"not found")))
     }
 
     /// How many pages the snapshot holds.
@@ -90,7 +90,7 @@ impl Snapshot {
 
 /// A theme's static directory, read whole: every file under its own
 /// address, `/almanac/almanac.css` and all its neighbours.
-fn read_assets(root: &Path) -> HashMap<String, Arc<Vec<u8>>> {
+fn read_assets(root: &Path) -> HashMap<String, bytes::Bytes> {
     // What sits under static/ answers at its own address, from the root.
     let mut assets = HashMap::new();
     let mut stack = vec![root.to_path_buf()];
@@ -103,7 +103,7 @@ fn read_assets(root: &Path) -> HashMap<String, Arc<Vec<u8>>> {
             } else if let Ok(bytes) = std::fs::read(&path) {
                 if let Ok(under) = path.strip_prefix(root) {
                     let address = format!("/{}", under.to_string_lossy().replace('\\', "/"));
-                    assets.insert(address, Arc::new(bytes));
+                    assets.insert(address, bytes::Bytes::from(bytes));
                 }
             }
         }
@@ -113,7 +113,7 @@ fn read_assets(root: &Path) -> HashMap<String, Arc<Vec<u8>>> {
 
 impl Snapshot {
     /// A static asset of the theme, by address.
-    pub fn asset(&self, path: &str) -> Option<Arc<Vec<u8>>> {
+    pub fn asset(&self, path: &str) -> Option<bytes::Bytes> {
         self.assets.get(path).cloned()
     }
 }
