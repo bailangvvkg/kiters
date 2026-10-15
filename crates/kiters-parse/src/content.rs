@@ -109,7 +109,7 @@ fn adopt_kite_fields(front: &mut FrontMatter) {
             front.extra.get(serde_yaml::Value::String("published_at".to_string())).cloned()
         {
             if let Ok(date) = chrono::DateTime::parse_from_rfc3339(published.trim()) {
-                front.date = Some(date.with_timezone(&chrono::Utc()));
+                front.date = Some(date.with_timezone(&chrono::Utc));
                 front.extra.remove(serde_yaml::Value::String("published_at".to_string()));
             }
         }
