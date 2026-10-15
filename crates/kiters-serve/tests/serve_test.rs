@@ -109,7 +109,15 @@ async fn the_sitemap_is_served_as_xml() {
 
 #[tokio::test]
 async fn the_themes_static_answers_immutable() {
-    let served = served();
+    let served = std::sync::Arc::new(Served {
+        snapshot: std::sync::Arc::new(arc_swap::ArcSwap::from_pointee(
+            Snapshot::from_builder(
+                &mut kiters_build::SiteBuilder::new(fixture()).no_write().theme("demo"),
+                false,
+            )
+            .unwrap(),
+        )),
+    });
     let (status, body, headers) = get(&served, "/demo/hat.css", None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(String::from_utf8_lossy(&body).contains("teal"));
