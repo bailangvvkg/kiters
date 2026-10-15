@@ -54,6 +54,7 @@ pub fn watch_and_rebuild(
         let _watcher = watcher;
         let mut waiting_for: Option<chrono::DateTime<chrono::Utc>> = None;
         let mut quiet_until: Option<Instant> = None;
+        let mut last_theme = theme_stamp(&root_for_tick);
         loop {
             // The rebuild arm: the site says what it now is, and the
             // next due time is taken from what it said.
@@ -71,7 +72,7 @@ pub fn watch_and_rebuild(
             let until_due = waiting_for
                 .and_then(|at| (at + chrono::Duration::seconds(1)).signed_duration_since(chrono::Utc::now()).to_std().ok())
                 .unwrap_or(Duration::from_secs(3600));
-            let timeout = until_due.min(Duration::from_secs(60));
+            let timeout = until_due.min(Duration::from_secs(20));
 
             let mut changed = false;
             match rx.recv_timeout(timeout) {
@@ -80,7 +81,18 @@ pub fn watch_and_rebuild(
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                     let due_passed = waiting_for.is_some_and(|at| at <= chrono::Utc::now());
                     if !due_passed {
-                        continue; // the clock ticked on a quiet site
+                        // The clock ticked on a quiet site — but a theme
+                        // replaced under a standing watch (a directory
+                        // removed and unpacked again) leaves inotify
+                        // pointing at nothing. The stamp catches what
+                        // the events miss.
+                        let seen = theme_stamp(&root_for_tick);
+                        if seen != last_theme {
+                            last_theme = seen;
+                            changed = true;
+                        } else {
+                            continue;
+                        }
                     }
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
@@ -129,4 +141,25 @@ fn rebuild(builder: &Mutex<SiteBuilder<'static>>, with_drafts: bool) -> anyhow::
 fn relevant(event: &Event) -> bool {
     use notify::EventKind::*;
     matches!(event.kind, Modify(_) | Create(_) | Remove(_))
+}
+
+/// The newest mtime under the themes tree — the watch's backstop,
+/// compared on the clock. Cheap to ask: a few hundred files stated.
+fn theme_stamp(root: &std::path::Path) -> Option<std::time::SystemTime> {
+    let mut newest = None;
+    let mut stack = vec![root.join("themes")];
+    while let Some(dir) = stack.pop() {
+        let Ok(read) = std::fs::read_dir(&dir) else { continue };
+        for entry in read.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if let Ok(seen) = entry.metadata().and_then(|m| m.modified()) {
+                if newest.map_or(true, |have| seen > have) {
+                    newest = Some(seen);
+                }
+            }
+        }
+    }
+    newest
 }
