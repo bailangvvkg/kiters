@@ -97,3 +97,33 @@ plugins/               stamp-wasm / skipper-wasm / linkcard-lite
 apps/kiters-cli        build + serve + migrate-template 子命令(migrate.rs 含单测)
 tests/fixture          5 内容项(1 草稿 1 定时)含别名/税目/长文 + themes/demo/
 ```
+
+## 8. almanac 主题(kite 的皮,kiters 穿上)
+
+生产容器即穿此主题。kite 的 almanac 模板(Tailwind 编译产物 102K css + 21K js)
+原样复用,模板移植为 minijinja:
+
+- `themes/almanac/`:baseof.html(骨架:头部/亮暗 init/og)+ page(文章)/
+  list(首页与词目)/taxonomy(分类索引)/notfound/alias + `_partials/`
+  (header/footer/icon 内联 SVG macro/theme-init 亮暗记忆)。
+- **minijinja 雷区**:replace 过滤器参数是位置式(`replace('-', '_')`),
+  kwargs 版直接炸;map 取值 `svgs[name] | default()`,没有 `.get()`;
+  模板渲染失败曾静默成空串——`Layout::say` 现在 eprintln 出错因。
+- 主题 static/:**`static/` 下的内容即站点根**。build 落盘到输出目录,
+  snapshot 整包读进内存,serve 按 `/almanac/...` 地址回答
+  (css/js/svg/ico/png/webp/woff2 内容类型 + immutable 缓存)。
+  页面自己说 no-store,`SetResponseHeaderLayer` 是 `if_not_present`。
+- 主题设置:`kite.yaml` 的 `theme.settings.*` 整块进 `SiteMeta.theme_settings`
+  (yaml Mapping),模板里 `site.theme_settings.web_fonts` 直读。
+  `theme_settings.taxonomy` 决定导航指向哪个分类索引(本站 categories)。
+- 税目跟随站点:said_tags 取 item 实有的 taxonomy(tags 优先,否则
+  categories 等),term 地址两侧同源(layout 的 encode_term 与 plan 的
+  term_encode 同规则:非保留字节百分号大写)。
+- `markdown.unsafeHTML: true`(kite.yaml)现在由 SiteBuilder::new 自己读,
+  不再要 --unsafe 标志(显式 --unsafe 仍是并集)。上色 span 由此保留。
+- watch 连 `themes/` 一起看(递归):改模板不用重启容器。
+- 部署命令(生产):
+  ```
+  docker run -d --name kiters --restart unless-stopped --network host     -v /root/kiters-site:/site -w /site     ghcr.io/bailangvvkg/kiters:latest serve --site /site --addr 0.0.0.0:1718     --highlight --admin 'kiters@zipimg2026'     --plugin /site/plugins/linkcard_lite.wasm --theme almanac
+  ```
+  本地改主题 → tar 传 /root/kiters-site/themes/ → watch 自动重建(不用重启)。
