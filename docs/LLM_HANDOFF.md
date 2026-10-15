@@ -127,3 +127,20 @@ tests/fixture          5 内容项(1 草稿 1 定时)含别名/税目/长文 + t
   docker run -d --name kiters --restart unless-stopped --network host     -v /root/kiters-site:/site -w /site     ghcr.io/bailangvvkg/kiters:latest serve --site /site --addr 0.0.0.0:1718     --highlight --admin 'kiters@zipimg2026'     --plugin /site/plugins/linkcard_lite.wasm --theme almanac
   ```
   本地改主题 → tar 传 /root/kiters-site/themes/ → watch 自动重建(不用重启)。
+
+### 8.1 首页卡片与 studio(用户验收后返工)
+
+- **首页卡片**照原版 card-post 画:左窄图(w-28 sm:w-52,占满卡片高)+
+  右侧 min-h-36(meta 行 mono 11px / 标题 15px line-clamp-2 / 摘要 13px /
+  tags 行)。`card` `card-hover` `min-h-36` `line-clamp-2` 都在编译好的
+  almanac.css 里,直接用。
+- **studio 重写**(studio.html 单文件,内嵌全套 CSS 变量,亮暗跟随系统):
+  左侧栏列表(状态圆点/标题/id/日期,active 高亮)+ 右侧编辑区(大标题
+  输入 + 元信息网格 + mono 正文 + Ctrl+S)+ 预览分栏(iframe srcdoc
+  带纸感样式)+ 新建模态(不再 prompt)+ 右下 toast + 未保存警示。
+  API 契约不变(login/session/contents/preview,PUT 带 If-Match)。
+- **踩雷:改主题模板不生效**——minijinja 的 set_loader 结果**进程内缓存**,
+  文件改了进程不重读(重启才读)。修:每次 rebuild 前
+  `layout.forget_templates()`(env.clear_templates,需 &mut)。事件
+  inotify 其实在 bind mount 容器里工作正常;另留 20s 时钟兜底
+  (theme_stamp 比对主题树最新 mtime),防 rm+tar 整树替换丢 watch。
