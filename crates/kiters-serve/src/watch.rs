@@ -47,6 +47,7 @@ pub fn watch_and_rebuild(
     // One builder config, many builds: the plugins live in it, shared
     // whole from rebuild to rebuild.
     let builder = Mutex::new(build_config(&root, &options.theme, options.highlight, &plugins));
+    let root_for_tick = root.clone();
 
     thread::spawn(move || {
         // The watcher lives as long as the thread: dropped here, it is
