@@ -95,7 +95,7 @@ pub struct FrontMatter {
     pub status: Status,
     /// Dates in front matter are their own format's problem; here they
     /// are already instants.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_date")]
     pub date: Option<DateTime<Utc>>,
     #[serde(default)]
     pub cover: Option<String>,
@@ -109,6 +109,24 @@ pub struct FrontMatter {
     pub kind: Option<Kind>,
     #[serde(flatten)]
     pub extra: serde_yaml::Mapping,
+}
+
+/// A date as front matter says it: RFC 3339 whole, or a plain
+/// `2026-01-01` that means the midnight it starts at. Both are a
+/// site's habit; a date neither of them is, is not.
+fn de_date<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<DateTime<Utc>>, D::Error> {
+    let Some(raw) = Option::<String>::deserialize(d)? else { return Ok(None) };
+    let raw = raw.trim();
+    if let Ok(whole) = DateTime::parse_from_rfc3339(raw) {
+        return Ok(Some(whole.with_timezone(&Utc)));
+    }
+    if let Ok(day) = chrono::NaiveDate::parse_from_str(raw, "%Y-%m-%d") {
+        return day
+            .and_hms_opt(0, 0, 0)
+            .map(|midnight| DateTime::from_naive_utc_and_offset(midnight, chrono::Utc))
+            .ok_or_else(|| serde::de::Error::custom("a date with no midnight"));
+    }
+    Err(serde::de::Error::custom(format!("date, not as one is read: {raw}")))
 }
 
 /// An item of content: the front matter and the prose, and where both

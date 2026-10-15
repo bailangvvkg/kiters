@@ -52,12 +52,28 @@ pub fn split_front_matter(text: &str) -> (FrontMatter, String) {
         if let Some(end) = rest.find("\n---") {
             let tail = &rest[end + 4..];
             let matter = &rest[..end];
-            let mut front: FrontMatter = serde_yaml::from_str(matter).unwrap_or_default();
+            let mut front: FrontMatter = match serde_yaml::from_str(matter) {
+                Ok(front) => front,
+                Err(err) => {
+                    // A matter that will not parse does not sink the
+                    // item: it stands with every field unsaid, and the
+                    // builder hears about it.
+                    eprintln!("front matter 解析失败,字段全部按缺省处理: {err}");
+                    FrontMatter::default()
+                }
+            };
             // A file may carry fields we have no name for; those went to
             // `extra` already. A matter that failed to parse entirely is
             // empty — the walk reports it, and the prose still renders.
             if front.title.is_empty() {
-                front.title = matter.lines().next().unwrap_or("").to_string();
+                front.title = matter
+                    .lines()
+                    .find_map(|line| line.trim().strip_prefix("title:"))
+                    .map(|said| said.trim().trim_matches('"').to_string())
+                    .or_else(|| {
+                        matter.lines().map(str::trim).find(|line| !line.is_empty()).map(str::to_string)
+                    })
+                    .unwrap_or_default();
             }
             return (front, tail.trim_start_matches(['\r', '\n']).to_string());
         }
@@ -150,4 +166,42 @@ pub fn walk_content(root: &Path, hooks: &Hooks) -> (Vec<Content>, Vec<WalkError>
     let now = Utc::now();
     items.sort_by(|a, b| b.dated(now).cmp(&a.dated(now)));
     (items, errors)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_plain_date_reads_as_its_midnight() {
+        let (front, body) = split_front_matter("---
+title: 一篇
+date: 2026-01-05
+---
+
+正文
+");
+        assert_eq!(front.title, "一篇");
+        assert_eq!(front.date.map(|d| d.to_rfc3339()), Some("2026-01-05T00:00:00+00:00".to_string()));
+        assert_eq!(body, "正文
+");
+    }
+
+    #[test]
+    fn a_whole_timestamp_reads_whole() {
+        let (front, _) = split_front_matter("---
+date: 2026-01-02T10:00:00Z
+---
+");
+        assert_eq!(front.date.map(|d| d.to_rfc3339()), Some("2026-01-02T10:00:00+00:00".to_string()));
+    }
+
+    #[test]
+    fn no_date_is_no_date() {
+        let (front, _) = split_front_matter("---
+title: x
+---
+");
+        assert!(front.date.is_none());
+    }
 }
