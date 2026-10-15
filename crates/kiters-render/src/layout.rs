@@ -65,10 +65,13 @@ impl Layout {
     }
 
     fn say(&self, name: &str, values: minijinja::Value) -> String {
-        self.env
-            .get_template(name)
-            .and_then(|t| t.render(values))
-            .unwrap_or_default()
+        match self.env.get_template(name).and_then(|t| t.render(values)) {
+            Ok(said) => said,
+            Err(failed) => {
+                eprintln!("kiters: 模板 {name} 渲染失败: {failed}");
+                String::new()
+            }
+        }
     }
 
     /// A page: the body — already HTML — in the site's skeleton.
