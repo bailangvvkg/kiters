@@ -65,6 +65,10 @@ pub fn split_front_matter(text: &str) -> (FrontMatter, String) {
             // A file may carry fields we have no name for; those went to
             // `extra` already. A matter that failed to parse entirely is
             // empty — the walk reports it, and the prose still renders.
+            // Kite's posts say tags and categories at the top of the
+            // matter, and date the moment they published; read both
+            // habits as the words kiters speaks.
+            adopt_kite_fields(&mut front);
             if front.title.is_empty() {
                 front.title = matter
                     .lines()
@@ -79,6 +83,37 @@ pub fn split_front_matter(text: &str) -> (FrontMatter, String) {
         }
     }
     (FrontMatter::default(), trimmed.to_string())
+}
+
+/// The fields a kite post carries at the top of its matter, moved to
+/// where kiters keeps them: `tags` and `categories` into the taxonomies
+/// they already are, and a missing `date` taken from `published_at`.
+fn adopt_kite_fields(front: &mut FrontMatter) {
+    for (top, taxonomy) in [("tags", "tags"), ("categories", "categories")] {
+        let carried = front.extra.get(serde_yaml::Value::String(top.to_string())).cloned();
+        if let Some(serde_yaml::Value::Sequence(terms)) = carried {
+            if !front.taxonomies.contains_key(taxonomy) {
+                let said: Vec<String> = terms
+                    .into_iter()
+                    .filter_map(|term| term.as_str().map(str::to_string))
+                    .collect();
+                if !said.is_empty() {
+                    front.taxonomies.insert(taxonomy.to_string(), said);
+                    front.extra.remove(serde_yaml::Value::String(top.to_string()));
+                }
+            }
+        }
+    }
+    if front.date.is_none() {
+        if let Some(serde_yaml::Value::String(published)) =
+            front.extra.get(serde_yaml::Value::String("published_at".to_string())).cloned()
+        {
+            if let Ok(date) = chrono::DateTime::parse_from_rfc3339(published.trim()) {
+                front.date = Some(date.with_timezone(&chrono::Utc()));
+                front.extra.remove(serde_yaml::Value::String("published_at".to_string()));
+            }
+        }
+    }
 }
 
 /// Reads one item: front matter, prose, the slug from the directory the
@@ -194,6 +229,36 @@ date: 2026-01-02T10:00:00Z
 ---
 ");
         assert_eq!(front.date.map(|d| d.to_rfc3339()), Some("2026-01-02T10:00:00+00:00".to_string()));
+    }
+
+    #[test]
+    fn a_kite_post_reads_in_kiters_words() {
+        let (front, _) = split_front_matter(
+            "---
+title: 一篇
+status: published
+published_at: 2024-09-08T08:19:00Z
+tags: [随笔, 开工]
+categories: [技术]
+---
+",
+        );
+        assert_eq!(front.taxonomies.get("tags").map(|t| t.len()), Some(2));
+        assert_eq!(front.taxonomies.get("categories").map(|t| t.len()), Some(1));
+        assert_eq!(front.date.map(|d| d.to_rfc3339()), Some("2024-09-08T08:19:00+00:00".to_string()));
+        assert!(!front.extra.contains_key(&serde_yaml::Value::String("tags".to_string())));
+    }
+
+    #[test]
+    fn a_said_date_wins_over_the_published() {
+        let (front, _) = split_front_matter(
+            "---
+date: 2026-01-01
+published_at: 2024-09-08T08:19:00Z
+---
+",
+        );
+        assert_eq!(front.date.map(|d| d.to_rfc3339()), Some("2026-01-01T00:00:00+00:00".to_string()));
     }
 
     #[test]

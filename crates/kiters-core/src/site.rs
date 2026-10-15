@@ -222,7 +222,7 @@ pub struct SiteMeta {
     pub title: String,
     #[serde(default)]
     pub language: String,
-    #[serde(default)]
+    #[serde(default, alias = "baseURL")]
     pub base_url: String,
 }
 
