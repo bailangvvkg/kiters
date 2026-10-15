@@ -134,6 +134,9 @@ fn build_config(root: &PathBuf, theme: &Option<String>, highlight: bool, plugins
 /// One whole rebuild through the shared builder config.
 fn rebuild(builder: &Mutex<SiteBuilder<'static>>, with_drafts: bool) -> anyhow::Result<Snapshot> {
     let mut builder = builder.lock().expect("builder poisoned");
+    // The theme's templates are read once and cached; a rebuild wants
+    // what the files say now, so the cache is emptied first.
+    builder.layout.forget_templates();
     Snapshot::from_builder(&mut builder, with_drafts)
 }
 

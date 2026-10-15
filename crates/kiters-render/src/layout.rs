@@ -60,6 +60,13 @@ impl Layout {
     }
 
     /// Whether the layout's own templates say this one.
+    /// Forgets every template it holds cached. A theme's files are
+    /// read once and answered forever after from memory; a rebuild that
+    /// wants what they say now forgets first, and reads them again.
+    pub fn forget_templates(&self) {
+        self.env.clear_templates();
+    }
+
     fn says(&self, name: &str) -> bool {
         self.env.get_template(name).is_ok()
     }
