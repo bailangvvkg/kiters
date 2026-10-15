@@ -77,7 +77,8 @@ async fn create(app: &Router, authed: &[(&'static str, String)], slug: &str) -> 
 async fn a_save_keeps_the_aliases_and_reads_a_plain_date() {
     // What an item answered under before is not the save's to lose, and
     // a plain date is a date the same as a whole one.
-    let app = make_app();
+    let site = tempfile::tempdir().unwrap();
+    let app = make_app(&site);
     let auth = login(&app).await;
     let (status, body, _) = call(
         &app,
