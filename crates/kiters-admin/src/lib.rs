@@ -151,6 +151,7 @@ async fn read_one(_auth: Authed, State(admin): State<Arc<Admin>>, Path(id): Path
                         "date": item.front.date.map(|d| d.to_rfc3339()),
                         "cover": item.front.cover,
                         "tags": item.front.taxonomies.get("tags").cloned().unwrap_or_default(),
+                    "aliases": item.front.aliases,
                     },
                     "body": item.body,
                 }),
@@ -176,12 +177,28 @@ struct WriteItem {
     cover: Option<String>,
     #[serde(default)]
     tags: Vec<String>,
+    /// The addresses an item answered under before — a save that does
+    /// not carry them takes them away, and every old link dies.
+    #[serde(default)]
+    aliases: Vec<String>,
     #[serde(default)]
     body: String,
 }
 
 fn default_status() -> String {
     "draft".into()
+}
+
+/// A date as the studio says it: whole, or a plain `2026-01-01` that
+/// means the midnight it starts at — the same reading a file gets.
+fn parse_a_date(said: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    if let Ok(whole) = chrono::DateTime::parse_from_rfc3339(said.trim()) {
+        return Some(whole.with_timezone(&chrono::Utc));
+    }
+    chrono::NaiveDate::parse_from_str(said.trim(), "%Y-%m-%d")
+        .ok()
+        .and_then(|day| day.and_hms_opt(0, 0, 0))
+        .map(|midnight| chrono::DateTime::from_naive_utc_and_offset(midnight, chrono::Utc))
 }
 
 async fn create(_auth: Authed, State(admin): State<Arc<Admin>>, Json(item): Json<WriteItem>) -> Response {
@@ -244,7 +261,8 @@ fn write(admin: &Arc<Admin>, kind: &str, slug: &str, item: &WriteItem, expect: O
             "archived" => kiters_core::Status::Archived,
             _ => kiters_core::Status::Draft,
         },
-        date: item.date.as_deref().and_then(|d| chrono::DateTime::parse_from_rfc3339(d).ok()).map(|d| d.with_timezone(&chrono::Utc)),
+        date: item.date.as_deref().and_then(parse_a_date).map(|d| d.with_timezone(&chrono::Utc)),
+        aliases: item.aliases.clone(),
         cover: item.cover.clone(),
         ..Default::default()
     };

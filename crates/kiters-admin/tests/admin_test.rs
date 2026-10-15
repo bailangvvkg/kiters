@@ -74,6 +74,29 @@ async fn create(app: &Router, authed: &[(&'static str, String)], slug: &str) -> 
 }
 
 #[tokio::test]
+async fn a_save_keeps_the_aliases_and_reads_a_plain_date() {
+    // What an item answered under before is not the save's to lose, and
+    // a plain date is a date the same as a whole one.
+    let app = make_app();
+    let auth = login(&app).await;
+    let (status, body, _) = call(
+        &app,
+        "POST",
+        "/api/contents",
+        &auth,
+        Some(r#"{"kind":"posts","slug":"kept","title":"留着","status":"published","date":"2026-01-05","aliases":["/archives/kept-old/"],"tags":["随笔"],"body":"正文"}"#.as_bytes().to_vec()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+
+    let (status, body, _) = call(&app, "GET", "/api/contents/posts:kept", &auth, None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let item: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(item["front"]["aliases"][0].as_str().unwrap(), "/archives/kept-old/");
+    assert!(item["front"]["date"].as_str().unwrap().starts_with("2026-01-05"));
+}
+
+#[tokio::test]
 async fn login_gates_everything() {
     let site = make_site();
     let app = make_app(&site);

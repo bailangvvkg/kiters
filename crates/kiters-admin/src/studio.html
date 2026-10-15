@@ -88,6 +88,9 @@
       <label>标签</label><input id="f-tags" class="grow" placeholder="逗号隔开:随笔, 开工">
       <label>封面</label><input id="f-cover" class="grow" placeholder="cover 图片地址(可空)">
     </div>
+    <div class="row" style="margin-bottom:10px">
+      <label>别名</label><input id="f-aliases" class="grow" placeholder="旧地址,逗号隔开:/archives/123/(保存不填会丢!)" style="color:#fdd663">
+    </div>
     <textarea id="f-body" placeholder="正文,markdown"></textarea>
     <div class="row" style="margin-top:10px">
       <span class="grow" id="rev" style="color:#9aa3ad;font-size:12.5px"></span>
@@ -192,6 +195,7 @@ async function openItem(id) {
     $("f-status").value = item.front.status || "draft";
     $("f-date").value = item.front.date ? String(item.front.date).slice(0, 10) : "";
     $("f-tags").value = (item.front.tags || []).join(", ");
+    $("f-aliases").value = (item.front.aliases || []).join(", ");
     $("f-cover").value = item.front.cover || "";
     $("f-body").value = item.body || "";
     $("rev").textContent = "revision " + String(item.revision).slice(0, 12);
@@ -208,6 +212,7 @@ function collect() {
     date: $("f-date").value.trim() || null,
     cover: $("f-cover").value.trim() || null,
     tags: $("f-tags").value.split(/[,，]/).map(t => t.trim()).filter(Boolean),
+    aliases: $("f-aliases").value.split(/[,，]/).map(t => t.trim()).filter(Boolean),
     body: $("f-body").value,
   };
 }
