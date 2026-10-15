@@ -21,7 +21,13 @@ pub fn read_config(root: &Path) -> anyhow::Result<SiteMeta> {
         let text = fs::read_to_string(&path)?;
         let raw: serde_yaml::Value = serde_yaml::from_str(&text)?;
         let site = raw.get("site").cloned().unwrap_or_default();
-        return Ok(serde_yaml::from_value(site)?);
+        let mut meta: SiteMeta = serde_yaml::from_value(site)?;
+        if let Some(settings) = raw.get("theme").and_then(|t| t.get("settings")).cloned() {
+            if let Ok(said) = serde_yaml::from_value::<serde_yaml::Mapping>(settings) {
+                meta.theme_settings = said;
+            }
+        }
+        return Ok(meta);
     }
     Ok(SiteMeta::default())
 }

@@ -135,6 +135,22 @@ pub fn build_site(builder: &SiteBuilder<'_>) -> anyhow::Result<(SiteMeta, Plan, 
             fs::write(&path, &page.html)?;
             report.written += 1;
         }
+        // The theme's own static files land with the pages, at their own
+        // addresses — the site's clothes are the site's to serve.
+        if let Some(static_dir) = builder.layout.static_dir() {
+            let rooted = static_dir.ancestors().nth(1).unwrap_or(static_dir).to_path_buf();
+            for file in walk_files(static_dir) {
+                if let Ok(under) = file.strip_prefix(&rooted) {
+                    let to = out.join(under);
+                    if let Some(dir) = to.parent() {
+                        fs::create_dir_all(dir)?;
+                    }
+                    if fs::copy(&file, &to).is_ok() {
+                        report.written += 1;
+                    }
+                }
+            }
+        }
     }
     report.took = started.elapsed();
     Ok((site, plan, pages, report))
@@ -162,7 +178,7 @@ fn render_target(
                 html = kiters_render::highlight_code_blocks(&html, &highlighter);
             }
             builder.hooks.html(&target.url, &mut html)?;
-            Ok(builder.layout.page(site, &content.front.title, &html))
+            Ok(builder.layout.post(site, content, &html))
         }
         TargetKind::Home => Ok(builder.layout.home(site, public)),
         TargetKind::NotFound => Ok(builder.layout.not_found(site)),
@@ -179,12 +195,7 @@ fn render_target(
                     (term.clone(), url)
                 })
                 .collect();
-            let mut body = String::from("<ul>\n");
-            for (term, url) in &terms {
-                body.push_str(&format!("<li><a href=\"{url}\">{term}</a></li>\n"));
-            }
-            body.push_str("</ul>\n");
-            Ok(builder.layout.page(site, name, &body))
+            Ok(builder.layout.taxonomy(site, name, &terms))
         }
         TargetKind::Term { taxonomy, term } => {
             let carrying: Vec<_> = public
@@ -268,4 +279,22 @@ fn plain_text(markdown: &str) -> String {
         }
     }
     text.chars().take(500).collect::<String>().trim_end().to_string()
+}
+
+/// Every file under a directory, however deep.
+fn walk_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut found = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(read) = fs::read_dir(&dir) else { continue };
+        for entry in read.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                found.push(path);
+            }
+        }
+    }
+    found
 }

@@ -64,6 +64,8 @@ fn builds_the_whole_site_with_drafts_and_scheduled_left_out() {
     // Nowhere the draft or the scheduled item.
     let sitemap = std::fs::read_to_string(out.path().join("sitemap.xml")).unwrap();
     assert!(!sitemap.contains("miyue") && !sitemap.contains("scheduled"), "sitemap leaks");
+    let hat = std::fs::read_to_string(out.path().join("demo/hat.css")).unwrap();
+    assert!(hat.contains("teal"), "the theme's static did not land: {hat}");
     let search = std::fs::read_to_string(out.path().join("search.json")).unwrap();
     assert!(search.contains("/posts/hello-world/"), "search lost the post");
     assert!(!search.contains("miyue"), "search leaks the draft");

@@ -108,6 +108,16 @@ async fn the_sitemap_is_served_as_xml() {
 }
 
 #[tokio::test]
+async fn the_themes_static_answers_immutable() {
+    let served = served();
+    let (status, body, headers) = get(&served, "/demo/hat.css", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(String::from_utf8_lossy(&body).contains("teal"));
+    assert!(headers.get("content-type").unwrap().to_str().unwrap().contains("text/css"));
+    assert!(headers.get("cache-control").unwrap().to_str().unwrap().contains("immutable"));
+}
+
+#[tokio::test]
 async fn the_search_index_answers_as_json() {
     let served = served();
     let (status, body, headers) = get(&served, "/search.json", None).await;

@@ -1,0 +1,63 @@
+{# The reading scheme: a stored choice never flashes the other one. #}
+<script>
+  (function () {
+    var root = document.documentElement;
+    var site = root.getAttribute("data-mode") || "auto";
+    var read = function () {
+      try {
+        var saved = localStorage.getItem("kite-theme");
+        if (saved === "auto" || saved === "light" || saved === "dark") return saved;
+      } catch (e) {}
+      return site;
+    };
+    var mode = read();
+    var prefersDark = function () { return window.matchMedia("(prefers-color-scheme: dark)").matches; };
+    var shown = function () { return mode !== "auto" ? mode : prefersDark() ? "dark" : "light"; };
+    var metas = document.querySelectorAll('meta[name="theme-color"]');
+    var own = function (meta) { return /dark/.test(meta.media) ? "dark" : "light"; };
+    var tint = {};
+    for (var i = 0; i < metas.length; i++) tint[own(metas[i])] = metas[i].content;
+    var apply = function () {
+      root.setAttribute("data-mode", mode);
+      if (mode === "auto") root.removeAttribute("data-theme");
+      else root.setAttribute("data-theme", mode);
+      for (var i = 0; i < metas.length; i++) {
+        metas[i].content = tint[mode === "auto" ? own(metas[i]) : mode];
+      }
+    };
+    var reload = function () { mode = read(); apply(); };
+    root.setAttribute("data-js", "");
+    apply();
+    document.addEventListener("DOMContentLoaded", apply);
+    window.addEventListener("storage", function (event) {
+      if (event.key === "kite-theme" || event.key === null) reload();
+    });
+    window.addEventListener("pageshow", function (event) {
+      if (event.persisted) reload();
+    });
+    document.addEventListener("click", function (event) {
+      var button = event.target.closest && event.target.closest("[data-theme-toggle]");
+      if (!button) return;
+      var before = shown();
+      mode = mode === "light" ? "dark" : mode === "dark" ? "auto" : "light";
+      try { localStorage.setItem("kite-theme", mode); } catch (e) {}
+      if (shown() === before || window.matchMedia("(prefers-reduced-motion: reduce)").matches || !document.startViewTransition) {
+        apply();
+        void root.offsetWidth;
+        return;
+      }
+      var box = button.getBoundingClientRect();
+      var x = box.left + box.width / 2;
+      var y = box.top + box.height / 2;
+      var radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+      var transition = document.startViewTransition(apply);
+      transition.ready.then(function () {
+        root.animate(
+          { clipPath: ["circle(0px at " + x + "px " + y + "px)", "circle(" + radius + "px at " + x + "px " + y + "px)"] },
+          { duration: 450, easing: "cubic-bezier(0.4, 0, 0.2, 1)", pseudoElement: "::view-transition-new(root)" }
+        );
+      }, function () {});
+      transition.finished.then(function () {}, function () {});
+    });
+  })();
+</script>

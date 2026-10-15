@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="{{ site.language }}" data-mode="auto">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site.title }}{% endblock %}</title>
+  {% if site.description %}<meta name="description" content="{{ site.description }}">{% endif %}
+  {% if site.author %}<meta name="author" content="{{ site.author }}">{% endif %}
+  <meta property="og:site_name" content="{{ site.title }}">
+  <meta property="og:title" content="{% block og_title %}{{ site.title }}{% endblock %}">
+  <meta property="og:locale" content="{{ site.language | replace(from='-', to='_') }}">
+  {% if site.description %}<meta property="og:description" content="{{ site.description }}">{% endif %}
+  <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#222220" media="(prefers-color-scheme: dark)">
+  <link rel="alternate" type="application/rss+xml" title="{{ site.title }}" href="/rss.xml">
+  <link rel="icon" type="image/svg+xml" href="/almanac/favicon.svg">
+  <link rel="icon" type="image/x-icon" href="/almanac/favicon.ico" sizes="32x32">
+  <link rel="apple-touch-icon" href="/almanac/apple-touch-icon.svg">
+  <link rel="mask-icon" href="/almanac/safari-pinned-tab.svg" color="#c0764e">
+  {% include "_partials/theme-init.html" %}
+  <link rel="stylesheet" href="/almanac/almanac.css">
+  {% if site.theme_settings.web_fonts %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
+  {% endif %}
+  <script src="/almanac/almanac.js" defer></script>
+</head>
+<body class="min-h-screen flex flex-col bg-background text-foreground antialiased"
+  data-copy="复制"
+  data-copied="已复制"
+  data-anchor="锚点"
+  data-close="关闭"
+  data-image-prev="上一张"
+  data-image-next="下一张">
+  <a href="#main" class="skip-link">跳到正文</a>
+  <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="打开菜单">
+  {% include "_partials/header.html" %}
+
+  <div class="flex-1 mx-auto w-full max-w-4xl px-4 md:px-6 lg:px-8">
+    <main id="main" class="py-8 md:py-12">
+      {% block main %}{% endblock %}
+    </main>
+  </div>
+
+  {% include "_partials/footer.html" %}
+</body>
+</html>

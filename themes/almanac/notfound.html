@@ -1,0 +1,12 @@
+{% extends "baseof.html" %}
+{% block title %}页面不存在 · {{ site.title }}{% endblock %}
+{% block main %}
+<div class="mx-auto max-w-3xl py-16 text-center">
+  <div class="font-mono text-7xl font-bold text-brand/40">404</div>
+  <h1 class="mt-6 text-2xl font-bold tracking-tight">这里没有内容</h1>
+  <p class="mt-3 text-sm text-muted-foreground">这个地址不存在,或者搬走了。</p>
+  <div class="mt-8">
+    <a href="/" class="btn btn-outline btn-sm font-mono uppercase tracking-wider">回到首页</a>
+  </div>
+</div>
+{% endblock %}

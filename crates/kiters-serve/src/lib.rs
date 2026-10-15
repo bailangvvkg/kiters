@@ -65,6 +65,21 @@ async fn route(State(served): State<Arc<Served>>, request: Request<Body>) -> Res
     // flood of ?x= is a flood of the same page.
     let snapshot = served.snapshot.load_full();
     let path = request.uri().path().to_string();
+    if let Some(asset) = snapshot.asset(&path) {
+        let mut response = Response::new(Body::from((*asset).clone()));
+        response
+            .headers_mut()
+            .insert("x-kiters", HeaderValue::from_static("snapshot"));
+        response
+            .headers_mut()
+            .insert(header::CONTENT_TYPE, HeaderValue::from_static(asset_type(&path)));
+        // A theme's own files change only with a rebuild; a reader may
+        // keep one as long as they like.
+        response
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable"));
+        return response;
+    }
     let page = snapshot.get(&path);
     let (status, body) = match page {
         Some(page) => (StatusCode::OK, page.html.clone()),
@@ -89,6 +104,29 @@ async fn route(State(served): State<Arc<Served>>, request: Request<Body>) -> Res
             .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
     }
     response
+}
+
+/// What a static file says it is, by its ending.
+fn asset_type(path: &str) -> &'static str {
+    if path.ends_with(".css") {
+        "text/css; charset=utf-8"
+    } else if path.ends_with(".js") {
+        "application/javascript; charset=utf-8"
+    } else if path.ends_with(".svg") {
+        "image/svg+xml"
+    } else if path.ends_with(".ico") {
+        "image/x-icon"
+    } else if path.ends_with(".png") {
+        "image/png"
+    } else if path.ends_with(".webp") {
+        "image/webp"
+    } else if path.ends_with(".woff2") {
+        "font/woff2"
+    } else if path.ends_with(".woff") {
+        "font/woff"
+    } else {
+        "application/octet-stream"
+    }
 }
 
 /// What a served site runs with.

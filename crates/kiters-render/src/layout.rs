@@ -11,6 +11,9 @@ use minijinja::{context, Environment};
 /// just a directory whose templates answer before the built-ins do.
 pub struct Layout {
     env: Environment<'static>,
+    /// The theme's own static files, served as the site's — `/almanac/…`
+    /// straight out of `themes/<name>/static/`.
+    static_dir: Option<std::path::PathBuf>,
 }
 
 impl Layout {
@@ -19,19 +22,27 @@ impl Layout {
         Self::with_loader(Box::new(|name| None))
     }
 
+    /// The theme's static directory, when the layout wears one.
+    pub fn static_dir(&self) -> Option<&std::path::Path> {
+        self.static_dir.as_deref()
+    }
+
     /// A layout wearing a theme: its templates answer first, and what
     /// the theme does not say, the built-ins do. A theme is not a
     /// fork of the site — it is the site's own clothes.
     pub fn theme(dir: impl Into<std::path::PathBuf>) -> Self {
         let dir = dir.into();
-        Self::with_loader(Box::new(move |name| {
+        let static_dir = dir.join("static");
+        let mut wearing = Self::with_loader(Box::new(move |name| {
             // The theme speaks its templates by file name; the built-in
             // bodies arrive ready-made and are not files to read.
             if name.starts_with("builtin:") {
                 return None;
             }
             std::fs::read_to_string(dir.join(name)).ok()
-        }))
+        }));
+        wearing.static_dir = static_dir.exists().then_some(static_dir);
+        wearing
     }
 
     fn with_loader(theme: Box<dyn Fn(&str) -> Option<String> + Send + Sync>) -> Self {
@@ -45,7 +56,7 @@ impl Layout {
                 .find(|(known, _)| *known == name)
                 .map(|(_, text)| (*text).to_string()))
         });
-        Layout { env }
+        Layout { env, static_dir: None }
     }
 
     /// Whether the layout's own templates say this one.
@@ -70,6 +81,25 @@ impl Layout {
         self.list(site, &site.title, items)
     }
 
+    /// A post: a page that is one item, wearing what the item knows —
+    /// its date, its tags, its cover — for a theme to say.
+    pub fn post(&self, site: &kiters_core::SiteMeta, item: &kiters_core::Content, body_html: &str) -> String {
+        self.say(
+            "page.html",
+            context! {
+                site => site,
+                title => item.front.title,
+                body => body_html,
+                item => context! {
+                    url => item.url(),
+                    date => item.front.date.map(|d| d.date_naive().to_string()),
+                    cover => item.front.cover,
+                    tags => said_tags(item),
+                },
+            },
+        )
+    }
+
     /// A list page: a title and the items under it, newest first — the
     /// home page is one, a term's page is one. A theme that says
     /// `list.html` says the whole page; one that does not inherits the
@@ -82,6 +112,9 @@ impl Layout {
                     title => item.front.title,
                     url => item.url(),
                     date => item.front.date.map(|d| d.date_naive().to_string()),
+                    cover => item.front.cover,
+                    tags => said_tags(item),
+                    summary => excerpt(&item.body),
                 }
             })
             .collect();
@@ -99,6 +132,27 @@ impl Layout {
         }
         body.push_str("</article>\n");
         self.page(site, title, &body)
+    }
+
+    /// The index of a taxonomy: every term it has, each a link. A theme
+    /// that says `taxonomy.html` says the whole page.
+    pub fn taxonomy(&self, site: &kiters_core::SiteMeta, name: &str, terms: &[(String, String)]) -> String {
+        if self.says("taxonomy.html") {
+            let said: Vec<minijinja::Value> = terms
+                .iter()
+                .map(|(term, url)| context! { term => term, url => url })
+                .collect();
+            return self.say("taxonomy.html", context! { site => site, name => name, terms => said });
+        }
+        let mut body = String::from("<ul>
+");
+        for (term, url) in terms {
+            body.push_str(&format!("<li><a href=\"{}\">{}</a></li>
+", escape_attr(url), escape_text(term)));
+        }
+        body.push_str("</ul>
+");
+        self.page(site, name, &body)
     }
 
     /// An alias page: an address that says where its item lives now.
@@ -182,4 +236,66 @@ fn escape_attr(s: &str) -> String {
 /// Escapes a value that lands between tags.
 fn escape_text(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+/// The first words of a body, as plain text: the marks gone, the words
+/// kept, cut at a sentence's worth. A list page's card shows what a
+/// post is about without opening it.
+fn excerpt(markdown: &str) -> String {
+    let mut text = String::new();
+    'said: for line in markdown.lines() {
+        let line = line.trim();
+        if line.starts_with("```") || line.is_empty() || line.starts_with("---") {
+            continue;
+        }
+        if line.starts_with('#') || line.starts_with('>') {
+            continue;
+        }
+        for word in line.split_whitespace() {
+            let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '-');
+            if !word.is_empty() {
+                text.push_str(word);
+                text.push(' ');
+                if text.chars().count() > 90 {
+                    break 'said;
+                }
+            }
+        }
+    }
+    let said: String = text.chars().take(110).collect();
+    said.trim_end().to_string()
+}
+
+/// An item's tags, each carrying the address of its own page, said as
+/// the site says term addresses: percent-encoded whole.
+fn said_tags(item: &kiters_core::Content) -> Vec<minijinja::Value> {
+    item.front
+        .taxonomies
+        .get("tags")
+        .map(|terms| {
+            terms
+                .iter()
+                .map(|term| {
+                    context! {
+                        name => term,
+                        url => format!("/tags/{}/", encode_term(term)),
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A term said as an address: percent-encoded, the way the plan says
+/// term addresses.
+fn encode_term(term: &str) -> String {
+    let mut said = String::new();
+    for byte in term.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            said.push(byte as char);
+        } else {
+            said.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    said
 }

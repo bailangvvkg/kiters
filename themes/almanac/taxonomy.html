@@ -1,0 +1,16 @@
+{% extends "baseof.html" %}
+{% block title %}{{ name }} · {{ site.title }}{% endblock %}
+{% block og_title %}{{ name }}{% endblock %}
+{% block main %}
+<div class="mx-auto max-w-3xl">
+  <header class="mb-10 space-y-4 border-b border-border pb-8 text-center">
+    <h1 class="text-2xl font-bold tracking-tight md:text-3xl">{{ name }}</h1>
+    <div class="font-mono text-[11px] text-muted-foreground">{{ terms | length }} 个词条</div>
+  </header>
+  <div class="flex flex-wrap gap-2.5">
+    {% for term in terms %}
+    <a href="{{ term.url }}" class="chip">#{{ term.term }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

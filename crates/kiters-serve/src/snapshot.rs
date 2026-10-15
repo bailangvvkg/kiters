@@ -13,6 +13,9 @@ use kiters_core::Page;
 pub struct Snapshot {
     site: kiters_core::SiteMeta,
     pages: HashMap<String, Arc<Page>>,
+    /// The theme's static files, by address, held whole with the pages
+    /// they dress.
+    assets: HashMap<String, Arc<Vec<u8>>>,
     /// The instants a scheduled item comes due; a watcher waits out the
     /// nearest and rebuilds when it passes.
     due: Vec<chrono::DateTime<chrono::Utc>>,
@@ -36,9 +39,15 @@ impl Snapshot {
             .filter(|c| c.status() == kiters_core::Status::Scheduled)
             .filter_map(|c| c.front.date)
             .collect();
+        let assets = builder
+            .layout
+            .static_dir()
+            .map(|dir| read_assets(dir))
+            .unwrap_or_default();
         Ok(Snapshot {
             site,
             pages: pages.into_iter().map(|page| (page.url.clone(), Arc::new(page))).collect(),
+            assets,
             due,
             built_in: report.took,
         })
@@ -76,5 +85,35 @@ impl Snapshot {
     /// How long the snapshot took to build.
     pub fn built_in(&self) -> std::time::Duration {
         self.built_in
+    }
+}
+
+/// A theme's static directory, read whole: every file under its own
+/// address, `/almanac/almanac.css` and all its neighbours.
+fn read_assets(dir: &Path) -> HashMap<String, Arc<Vec<u8>>> {
+    let rooted = dir.ancestors().nth(1).unwrap_or(dir).to_path_buf();
+    let mut assets = HashMap::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(read) = std::fs::read_dir(&dir) else { continue };
+        for entry in read.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if let Ok(bytes) = std::fs::read(&path) {
+                if let Ok(under) = path.strip_prefix(&rooted) {
+                    let address = format!("/{}", under.to_string_lossy().replace('\', "/"));
+                    assets.insert(address, Arc::new(bytes));
+                }
+            }
+        }
+    }
+    assets
+}
+
+impl Snapshot {
+    /// A static asset of the theme, by address.
+    pub fn asset(&self, path: &str) -> Option<Arc<Vec<u8>>> {
+        self.assets.get(path).cloned()
     }
 }

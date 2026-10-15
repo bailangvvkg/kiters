@@ -224,6 +224,14 @@ pub struct SiteMeta {
     pub language: String,
     #[serde(default, alias = "baseURL")]
     pub base_url: String,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub description: String,
+    /// What the site's yaml says to its theme, under `theme.settings` —
+    /// the theme's own knobs, read whole and handed over untouched.
+    #[serde(default)]
+    pub theme_settings: serde_yaml::Mapping,
 }
 
 /// A plan is every target of one build, in the order they will be

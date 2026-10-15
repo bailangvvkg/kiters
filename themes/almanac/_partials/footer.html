@@ -1,0 +1,12 @@
+<footer class="print:hidden mt-16 border-t border-border">
+  <div class="mx-auto flex max-w-4xl flex-col justify-between gap-x-4 gap-y-3 px-4 py-8 font-mono text-[11px] text-muted-foreground sm:flex-row sm:items-center md:px-6 lg:px-8">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span>© {{ now }} {{ site.title }}</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <a href="/rss.xml" class="inline-flex items-center gap-1 transition-colors hover:text-foreground">
+        {% from "_partials/icon.html" import icon %}{{ icon('rss', 'size-3') }}RSS
+      </a>
+    </div>
+  </div>
+</footer>

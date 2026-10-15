@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="{{ site.language }}">
+<head>
+  <meta charset="utf-8">
+  <title>搬家了 · {{ site.title }}</title>
+  <meta http-equiv="refresh" content="0;url={{ to }}">
+</head>
+<body>
+  <p>这个地址搬家了:<a href="{{ to }}">{{ to }}</a></p>
+  <script>location.replace("{{ to }}")</script>
+</body>
+</html>

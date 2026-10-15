@@ -1,0 +1,28 @@
+<header class="site-header print:hidden sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md transition-colors duration-200">
+  <div class="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
+    <div class="flex h-14 items-center justify-between gap-4">
+      <div class="flex min-w-0 items-center gap-4 lg:gap-6">
+        <label for="nav-toggle" class="menu-button icon-btn -ml-1 md:hidden" aria-hidden="true">
+          {% from "_partials/icon.html" import icon %}{{ icon('menu') }}
+        </label>
+        <a href="/" class="shrink-0 text-[16px] font-bold tracking-tight">{{ site.title }}</a>
+        <nav class="hidden items-center gap-4 md:flex lg:gap-5" aria-label="导航">
+          <a href="/" class="text-[13.5px] font-medium text-foreground/75 transition-colors hover:text-foreground">首页</a>
+          <a href="/tags/" class="text-[13.5px] font-medium text-foreground/75 transition-colors hover:text-foreground">标签</a>
+        </nav>
+      </div>
+      <div class="flex items-center gap-0.5">
+        <button type="button" class="icon-btn theme-toggle" data-theme-toggle
+                aria-label="切换白天或夜晚" title="跟随系统"
+                data-light="白天" data-dark="夜晚" data-auto="跟随系统">
+          <span class="theme-icon theme-icon-light">{% from "_partials/icon.html" import icon %}{{ icon('sun') }}</span>
+          <span class="theme-icon theme-icon-dark">{{ icon('moon') }}</span>
+          <span class="theme-icon theme-icon-auto">{{ icon('monitor') }}</span>
+        </button>
+        <a href="/rss.xml" class="icon-btn" aria-label="RSS" title="订阅">
+          {{ icon('rss') }}
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
