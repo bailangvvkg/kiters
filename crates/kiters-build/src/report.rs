@@ -138,9 +138,9 @@ pub fn build_site(builder: &SiteBuilder<'_>) -> anyhow::Result<(SiteMeta, Plan, 
         // The theme's own static files land with the pages, at their own
         // addresses — the site's clothes are the site's to serve.
         if let Some(static_dir) = builder.layout.static_dir() {
-            let rooted = static_dir.ancestors().nth(1).unwrap_or(static_dir).to_path_buf();
+            // What sits under static/ is the site's own root here.
             for file in walk_files(static_dir) {
-                if let Ok(under) = file.strip_prefix(&rooted) {
+                if let Ok(under) = file.strip_prefix(static_dir) {
                     let to = out.join(under);
                     if let Some(dir) = to.parent() {
                         fs::create_dir_all(dir)?;
