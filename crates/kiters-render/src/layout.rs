@@ -198,8 +198,26 @@ impl Layout {
 
     /// The feed: (url, title, rfc3339 date, description) tuples, newest
     /// first.
-    pub fn rss(&self, site: &kiters_core::SiteMeta, items: &[(String, String, String, String)]) -> String {
-        self.say("rss.xml", context! { site => site, items => items })
+    pub fn rss(
+        &self,
+        site: &kiters_core::SiteMeta,
+        items: &[(String, String, String, String, String, String)],
+    ) -> String {
+        let said: Vec<minijinja::Value> = items
+            .iter()
+            .map(|(url, title, date, summary, cover, id)| {
+                context! {
+                    url => url,
+                    title => title,
+                    date => date,
+                    summary => summary,
+                    cover => cover,
+                    id => id,
+                }
+            })
+            .collect();
+        let updated = items.iter().find_map(|i| (!i.2.is_empty()).then(|| i.2.clone())).unwrap_or_default();
+        self.say("rss.xml", context! { site => site, items => said, updated => updated })
     }
 }
 
@@ -233,9 +251,22 @@ static SITEMAP: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 {% endfor %}</urlset>"#;
 
 static RSS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"><channel>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+<channel>
 <title>{{ site.title }}</title><link>{{ site.base_url }}</link>
-{% for item in items %}<item><title>{{ item.1 }}</title><link>{{ (site.base_url ~ item.0) | escape }}</link><guid>{{ item.0 | escape }}</guid>{% if item.2 %}<pubDate>{{ item.2 }}</pubDate>{% endif %}<description>{{ item.3 }}</description></item>
+{% if site.description %}<description>{{ site.description }}</description>{% endif %}
+{% if site.language %}<language>{{ site.language }}</language>{% endif %}
+<generator>kiters</generator>
+{% if updated %}<lastBuildDate>{{ updated }}</lastBuildDate>{% endif %}
+{% if site.base_url %}<atom:link href="{{ site.base_url ~ '/rss.xml' }}" rel="self" type="application/rss+xml"></atom:link>{% endif %}
+{% for item in items %}<item>
+<title>{{ item.title }}</title>
+<link>{{ (site.base_url ~ item.url) | escape }}</link>
+<guid isPermaLink="false">{{ item.id }}</guid>
+{% if item.date %}<pubDate>{{ item.date }}</pubDate>{% endif %}
+<description>{{ item.summary }}</description>
+{% if item.cover %}<media:content url="{{ item.cover }}" medium="image"></media:content>{% endif %}
+</item>
 {% endfor %}</channel></rss>"#;
 
 /// Escapes a value that lands inside an attribute.

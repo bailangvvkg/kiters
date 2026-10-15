@@ -68,6 +68,11 @@ fn builds_the_whole_site_with_drafts_and_scheduled_left_out() {
     let search = std::fs::read_to_string(out.path().join("search.json")).unwrap();
     assert!(search.contains("/posts/hello-world/"), "search lost the post");
     assert!(!search.contains("miyue"), "search leaks the draft");
+    let feed = std::fs::read_to_string(out.path().join("rss.xml")).unwrap();
+    assert!(feed.contains("<atom:link"), "the feed does not link itself");
+    assert!(feed.contains("isPermaLink=\"false\""), "the feed's guid is not stable");
+    assert!(!feed.contains("<strong>"), "the feed carries whole pages, not a taste");
+
     let home = std::fs::read_to_string(out.path().join("index.html")).unwrap();
     assert!(home.contains("/posts/hello-world/"), "home does not list the post");
     assert!(!home.contains("miyue"), "draft on the home page");

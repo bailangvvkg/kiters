@@ -246,15 +246,28 @@ fn render_target(
             Ok(builder.layout.sitemap(site, &urls))
         }
         TargetKind::Extra("rss") => {
+            // The feed says what a reader wants in a list: what it is
+            // called, where it lives, when it stood, and a taste of it —
+            // not the whole of every page, which is what the pages are
+            // for. Its cover rides along as media.
             let items: Vec<_> = public
                 .iter()
                 .take(20)
                 .map(|c| {
+                    let id = c
+                        .front
+                        .extra
+                        .get(serde_yaml::Value::String("id".to_string()))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| c.url());
                     (
                         c.url(),
                         c.front.title.clone(),
                         c.front.date.map(|d| d.to_rfc2822()).unwrap_or_default(),
-                        markdown_to_html(&c.body, builder.markdown),
+                        tasted(&plain_text(&c.body)),
+                        c.front.cover.clone().unwrap_or_default(),
+                        id,
                     )
                 })
                 .collect();
@@ -303,4 +316,15 @@ fn walk_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
         }
     }
     found
+}
+
+/// A taste of a text: enough to know whether to click, with the cut
+/// said plainly.
+fn tasted(text: &str) -> String {
+    let cut: String = text.chars().take(300).collect();
+    if cut.chars().count() < text.chars().count() {
+        format!("{cut}…")
+    } else {
+        cut
+    }
 }
