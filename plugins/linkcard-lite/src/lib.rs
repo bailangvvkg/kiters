@@ -34,7 +34,7 @@ impl Guest for LinkcardLite {
     }
 
     fn on_markdown(_url: String, body: String) -> String {
-        body
+        fold_tags_into_blocks(&body)
     }
 
     fn on_target(target: Planned) -> Outcome {
@@ -78,7 +78,10 @@ fn dress_page(html: &str) -> String {
     );
     let with_style = match html.rfind("</head>") {
         Some(at) => format!("{}{}{}", &html[..at], style, &html[at..]),
-        None => html.to_string(),
+        // A body fragment — the hooks run before the layout dresses the
+        // page — wears it at the front, where a browser reads it all
+        // the same.
+        None => format!("{style}{html}"),
     };
     match with_style.rfind("</body>") {
         Some(at) => format!("{}{}{}", &with_style[..at], script, &with_style[at..]),
@@ -225,6 +228,50 @@ fn attrs_of(tag: &str) -> Vec<(String, String)> {
         rest = &quoted[close + 1..];
     }
     attrs
+}
+
+/// A Halo card tag in the writing becomes a card code block, before
+/// the renderer can omit the tag as raw HTML it does not trust. What
+/// the tag says is said again in the block's own words.
+fn fold_tags_into_blocks(body: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut rest = body;
+    while let Some(at) = rest.find("<hyperlink-") {
+        // The tag opens, and its closing shape ends with a `>` of its own.
+        let Some(close) = rest[at..].find("</hyperlink").map(|i| at + i) else { break };
+        let Some(tag_end) = rest[at..close].find('>').map(|i| at + i) else { break };
+        let Some(block_end) = rest[close..].find('>').map(|i| close + i + 1) else { break };
+        let tag = &rest[at..tag_end];
+        let inline = tag.starts_with("<hyperlink-inline-");
+
+        let mut params = Vec::new();
+        for (name, value) in attrs_of(tag) {
+            let said = match name.as_str() {
+                "href" => format!("url: {value}"),
+                "custom-title" => format!("title: {value}"),
+                "custom-description" => format!("desc: {value}"),
+                "custom-image" => format!("image: {value}"),
+                "custom-icon" => format!("icon: {value}"),
+                "theme" => format!("size: {value}"),
+                _ => continue,
+            };
+            params.push(said);
+        }
+        if inline {
+            params.push("size: small".to_string());
+        }
+        out.push_str(&rest[..at]);
+        out.push_str("```card
+");
+        out.push_str(&params.join("
+"));
+        out.push_str("
+```
+");
+        rest = &rest[block_end..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// A paragraph that is exactly one bare link becomes a card; the rest

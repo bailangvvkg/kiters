@@ -121,6 +121,47 @@ fn linkcard_draws_a_moved_halo_tag() {
 }
 
 #[test]
+fn linkcard_moves_a_halo_tag_into_a_card_block() {
+    let engine = engine();
+    let plugin = WasmPlugin::load(&engine, &guest("linkcard-lite")).unwrap();
+
+    // A renderer that does not trust raw HTML omits the tag whole; so
+    // the tag becomes a card code block while it is still writing, and
+    // rides the block's own road to a card.
+    let writing = "前文
+
+<hyperlink-card href=\"https://blog.zipimg.cn/archives/1\" custom-title=\"一篇文章\"></hyperlink-card>
+
+后文
+
+<hyperlink-inline-card href=\"https://example.com/\"></hyperlink-inline-card>
+";
+    let mut content = kiters_core::Content {
+        kind: kiters_core::Kind::new("post"),
+        slug: "test".to_string(),
+        front: Default::default(),
+        body: writing.to_string(),
+        source: std::path::PathBuf::from("index.md"),
+    };
+    plugin
+        .on_markdown(kiters_core::MarkdownEvent { content: &mut content })
+        .unwrap();
+    let said = content.body;
+
+    assert!(said.contains("```card
+url: https://blog.zipimg.cn/archives/1
+title: 一篇文章
+```"), "the tag did not become a block: {said}");
+    assert!(said.contains("url: https://example.com/
+size: small"), "the inline tag is not the small card: {said}");
+    assert!(!said.contains("hyperlink-card"), "a tag stayed in the writing: {said}");
+    assert!(said.starts_with("前文"), "the writing around was touched: {said}");
+    assert!(said.contains("
+
+后文"), "the prose after was torn: {said}");
+}
+
+#[test]
 fn linkcard_folds_a_bare_link_and_nothing_else() {
     let engine = engine();
     let plugin = WasmPlugin::load(&engine, &guest("linkcard-lite")).unwrap();
