@@ -144,3 +144,22 @@ tests/fixture          5 内容项(1 草稿 1 定时)含别名/税目/长文 + t
   `layout.forget_templates()`(env.clear_templates,需 &mut)。事件
   inotify 其实在 bind mount 容器里工作正常;另留 20s 时钟兜底
   (theme_stamp 比对主题树最新 mtime),防 rm+tar 整树替换丢 watch。
+
+### 8.2 RSS 摘要化 + 零拷贝压测(wrk 实录)
+
+- **RSS 对齐 kite**:description 从 308K 全文 HTML 改为 **300 字纯文本摘要**
+  (plain_text + tasted,截断加 …);guid 用 front matter 的 halo id
+  (isPermaLink=false,无 id 用路径);补 atom:link self / language /
+  generator / lastBuildDate;cover → media:content。308K → 17.3K。
+- **零拷贝**:Snapshot pages/assets 从 Arc<Page>.html.clone()(每请求整页
+  复制)改为 **bytes::Bytes**(引用计数,Body::from(Bytes) 零拷贝)。
+  workspace 加 bytes = "1"(记得 kiters-serve/Cargo.toml 也要
+  bytes.workspace = true)。
+- **压测**(服务器 3865U 单核 cpuset,wrk -t1 -c100 -d10s):
+  | 端点 | kite(Go:1717) | kiters 改前 | kiters 改后 |
+  |---|---|---|---|
+  | /(首页 38K) | 13,390 r/s | 6,952 r/s | **12,220 r/s** |
+  | /rss.xml | 13,626 r/s | 1,808 r/s(308K 时) | **11,690 r/s** |
+  | /almanac/css(102K) | — | — | 7,977 r/s(≈790MB/s,单核内存带宽顶) |
+  | RSS 内存 | 198→320 MiB(压测中) | **12.3→14.8 MiB** | 同左 |
+  kite 压测完回落 215 MiB;kiters 常驻 ~13 MiB、压测全程不涨。
