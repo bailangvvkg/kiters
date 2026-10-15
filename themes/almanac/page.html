@@ -7,7 +7,7 @@
   <header class="mb-10 space-y-4 border-b border-border pb-8 text-center">
     {% if item.tags %}
     <div class="eyebrow eyebrow-brand">
-      <a href="/tags/{{ item.tags[0] | urlencode | replace(from='%', to='%25', count=1) }}/" class="underline-offset-4 hover:underline">#{{ item.tags[0] }}</a>
+      <a href="{{ item.tags[0].url }}" class="underline-offset-4 hover:underline">#{{ item.tags[0].name }}</a>
     </div>
     {% endif %}
     <h1 class="text-2xl font-bold leading-[1.25] tracking-tight md:text-3xl lg:text-[2.375rem]">{{ title }}</h1>
@@ -33,9 +33,9 @@
 
   {% if item.tags %}
   <div class="mt-10 flex flex-wrap items-center gap-2 border-t border-border pt-6">
-    <span class="eyebrow mr-1">标签</span>
+    <span class="eyebrow mr-1">{{ site.theme_settings.taxonomy_label | default(value="分类") }}</span>
     {% for tag in item.tags %}
-    <a href="/tags/{{ tag | urlencode | replace(from='%', to='%25', count=1) }}/" class="chip">#{{ tag }}</a>
+    <a href="{{ tag.url }}" class="chip">#{{ tag.name }}</a>
     {% endfor %}
   </div>
   {% endif %}

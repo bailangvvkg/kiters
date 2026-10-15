@@ -1,5 +1,5 @@
 {% extends "baseof.html" %}
-{% block title %}{{ title }} · {{ site.title }}{% endblock %}
+{% block title %}{% if title == site.title %}{{ site.title }}{% else %}{{ title }} · {{ site.title }}{% endif %}{% endblock %}
 {% block og_title %}{{ title }}{% endblock %}
 {% block main %}
 <div class="space-y-12">
@@ -14,13 +14,12 @@
           你好,{{ site.author | default(value=site.title, boolean=true) }}
         </h1>
         {% if site.description %}
-        <p class="text-sm text-muted-foreground">{{ site.description }}</p>
+        <p class="max-w-2xl whitespace-pre-line font-serif text-base leading-relaxed text-foreground/80 md:text-lg">
+          {{ site.description }}
+        </p>
         {% endif %}
       </div>
     </div>
-    <p class="max-w-2xl whitespace-pre-line font-serif text-base leading-relaxed text-foreground/80 md:text-lg">
-      {{ site.description }}
-    </p>
   </section>
   {% else %}
   <section>
@@ -37,7 +36,7 @@
         <h2 class="eyebrow">最近的文章</h2>
         <span class="font-mono text-[10px] tabular-nums text-muted-foreground/60">{{ items | length }} 篇</span>
       </div>
-      <a href="/tags/" class="eyebrow transition-colors hover:text-foreground">全部标签</a>
+      <a href="/{{ site.theme_settings.taxonomy | default(value='categories') }}/" class="eyebrow transition-colors hover:text-foreground">{{ site.theme_settings.taxonomy_label | default(value='全部分类') }}</a>
     </div>
 
     <div class="flex flex-col gap-4">

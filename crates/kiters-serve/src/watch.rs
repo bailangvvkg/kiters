@@ -35,9 +35,12 @@ pub fn watch_and_rebuild(
             let _ = tx.send(event);
         }
     })?;
-    for dir in [root.join("content"), root.clone()] {
+    // The theme is watched too, whole: a template touched is the site
+    // re-said, without a restart asked.
+    for dir in [root.join("content"), root.join("themes"), root.clone()] {
         if dir.is_dir() {
-            watcher.watch(&dir, RecursiveMode::NonRecursive)?;
+            let mode = if dir.ends_with("themes") { RecursiveMode::Recursive } else { RecursiveMode::NonRecursive };
+            watcher.watch(&dir, mode)?;
         }
     }
 

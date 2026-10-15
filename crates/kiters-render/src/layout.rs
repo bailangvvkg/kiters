@@ -270,23 +270,28 @@ fn excerpt(markdown: &str) -> String {
 }
 
 /// An item's tags, each carrying the address of its own page, said as
-/// the site says term addresses: percent-encoded whole.
+/// the site says term addresses: percent-encoded whole. The taxonomy
+/// answered is the one the item actually has — `tags` when it has one,
+/// the first other (`categories`, or whatever) otherwise.
 fn said_tags(item: &kiters_core::Content) -> Vec<minijinja::Value> {
-    item.front
+    let carrying = item
+        .front
         .taxonomies
-        .get("tags")
-        .map(|terms| {
-            terms
-                .iter()
-                .map(|term| {
-                    context! {
-                        name => term,
-                        url => format!("/tags/{}/", encode_term(term)),
-                    }
-                })
-                .collect()
+        .iter()
+        .find(|(name, terms)| (*name == "tags" && !terms.is_empty()) || *name != "tags")
+        .filter(|(_, terms)| !terms.is_empty());
+    let Some((name, terms)) = carrying else {
+        return Vec::new();
+    };
+    terms
+        .iter()
+        .map(|term| {
+            context! {
+                name => term,
+                url => format!("/{}/{}/", name, encode_term(term)),
+            }
         })
-        .unwrap_or_default()
+        .collect()
 }
 
 /// A term said as an address: percent-encoded, the way the plan says

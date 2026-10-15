@@ -8,7 +8,9 @@
         <a href="/" class="shrink-0 text-[16px] font-bold tracking-tight">{{ site.title }}</a>
         <nav class="hidden items-center gap-4 md:flex lg:gap-5" aria-label="导航">
           <a href="/" class="text-[13.5px] font-medium text-foreground/75 transition-colors hover:text-foreground">首页</a>
-          <a href="/tags/" class="text-[13.5px] font-medium text-foreground/75 transition-colors hover:text-foreground">标签</a>
+          {% if site.theme_settings.taxonomy %}
+          <a href="/{{ site.theme_settings.taxonomy }}/" class="text-[13.5px] font-medium text-foreground/75 transition-colors hover:text-foreground">{{ site.theme_settings.taxonomy_label | default(value='分类') }}</a>
+          {% endif %}
         </nav>
       </div>
       <div class="flex items-center gap-0.5">

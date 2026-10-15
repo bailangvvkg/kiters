@@ -8,7 +8,7 @@
   {% if site.author %}<meta name="author" content="{{ site.author }}">{% endif %}
   <meta property="og:site_name" content="{{ site.title }}">
   <meta property="og:title" content="{% block og_title %}{{ site.title }}{% endblock %}">
-  <meta property="og:locale" content="{{ site.language | replace(from='-', to='_') }}">
+  <meta property="og:locale" content="{{ site.language | replace('-', '_') }}">
   {% if site.description %}<meta property="og:description" content="{{ site.description }}">{% endif %}
   <meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#222220" media="(prefers-color-scheme: dark)">
